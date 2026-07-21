@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/atlas_ai"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/atlas_ai"
     REDIS_URL: str = "redis://localhost:6379/0"
 
     GOOGLE_CLIENT_ID: str = ""
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     TTS_VOICE: str = "en-US-AriaNeural"
 
     FERNET_KEY: str = ""
+    JWT_SECRET: str = ""
 
     VITE_API_URL: str = "http://localhost:8000"
     VITE_WS_URL: str = "ws://localhost:8000"
