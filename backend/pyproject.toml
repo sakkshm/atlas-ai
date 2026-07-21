@@ -13,4 +13,6 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "cryptography>=44.0.0",
     "httpx>=0.28.0",
+    "sarvamai==0.1.28",
+    "langchain-google-genai>=2.0.0",
 ]

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     LLM_MODEL: str = "gemini-2.0-flash"
 
-    WHISPER_MODEL_SIZE: str = "base"
+    SARVAM_API_KEY: str = ""
     TTS_VOICE: str = "en-US-AriaNeural"
 
     FERNET_KEY: str = ""
