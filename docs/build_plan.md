@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-A voice-enabled AI assistant that orchestrates actions across 5 Google services (Calendar, Tasks, Gmail, Contacts, Maps) using LangGraph, with real-time streaming via WebSocket + Redis Pub/Sub, and a polished React frontend with a "Living Aura" voice visualizer.
+A voice-enabled AI assistant that orchestrates actions across 5 Google services (Calendar, Tasks, Gmail, Contacts, Maps) using LangGraph, with real-time streaming via WebSocket + Redis Streams, and a polished React frontend with a "Living Aura" voice visualizer.
 
 ## Deliverables Required
 
@@ -18,13 +18,13 @@ A voice-enabled AI assistant that orchestrates actions across 5 Google services 
 | Backend | FastAPI + Python 3.11+ |
 | Agent Orchestration | LangGraph (modular tool-calling architecture) |
 | Task Queue | Celery (Redis broker) |
-| Real-time Streaming | WebSocket + Redis Pub/Sub |
+| Real-time Streaming | WebSocket + Redis Streams |
 | Database | PostgreSQL (async SQLAlchemy) |
 | Auth | Google OAuth2 + JWT sessions |
 | Token Encryption | AES-256 (Fernet) |
 | LLM | Gemini 2.0 Flash (free tier) |
-| STT | faster-whisper (local, free, offline) |
-| TTS | edge-tts (free, no API key) |
+| STT | SarvamAI SDK (cloud, low-latency) |
+| TTS | SarvamAI SDK (cloud, natural voices) |
 | Frontend | React + Vite + TypeScript + Tailwind + Shadcn UI |
 | Animations | Framer Motion + Web Audio API |
 | Infrastructure | Docker Compose |
@@ -42,9 +42,12 @@ A voice-enabled AI assistant that orchestrates actions across 5 Google services 
 | No `.env.example` | Added to plan |
 | Docker services undefined | Explicit: postgres, redis, backend, celery-worker |
 | No error handling strategy | LangGraph error node + retry-once per tool + UI error states |
-| No LangGraph persistence | Use `PostgresSaver` checkpointing for conversation state |
-| Destructive action safety | HITL confirmation step in LangGraph graph for delete/update operations |
-| OpenAI dependency removed | STT uses `faster-whisper` (local), LLM uses Gemini, TTS uses `edge-tts` — no OpenAI API key needed |
+| No LangGraph persistence | Use `AsyncPostgresSaver` checkpointing for conversation state |
+| Destructive action safety | HITL via LangGraph `interrupt()` + `Command(resume=...)` |
+| faster-whisper for STT | **SarvamAI SDK** — cloud-based, no local model download, low latency |
+| edge-tts for TTS | **SarvamAI SDK** — single SDK for both STT and TTS, natural Indic voices |
+| Redis Pub/Sub for streaming | **Redis Streams** — persists messages, survives late subscribe, supports replay |
+| Phase ordering (tools → LangGraph → Celery) | **LangGraph → Celery/Redis → Tools** — build framework first, test tools incrementally |
 
 ---
 
@@ -64,6 +67,7 @@ atlas-ai/
 │   │   ├── core/
 │   │   │   ├── __init__.py
 │   │   │   ├── config.py
+│   │   │   ├── celery.py          # Celery app initialization
 │   │   │   ├── security.py
 │   │   │   └── database.py
 │   │   ├── models/
@@ -79,12 +83,12 @@ atlas-ai/
 │   │   │       └── user.py
 │   │   ├── agent/
 │   │   │   ├── __init__.py
-│   │   │   ├── graph.py
-│   │   │   ├── state.py
-│   │   │   ├── prompts.py
-│   │   │   ├── stt.py              # faster-whisper wrapper
-│   │   │   ├── llm.py              # Gemini wrapper
-│   │   │   ├── tts.py              # edge-tts wrapper
+│   │   │   ├── graph.py           # LangGraph StateGraph definition
+│   │   │   ├── state.py           # AgentState TypedDict
+│   │   │   ├── prompts.py         # System prompt + tool rules
+│   │   │   ├── stt.py             # SarvamAI speech-to-text
+│   │   │   ├── llm.py             # Gemini wrapper + model_with_tools
+│   │   │   ├── tts.py             # SarvamAI text-to-speech
 │   │   │   └── tools/
 │   │   │       ├── __init__.py
 │   │   │       ├── calendar_tool.py
@@ -94,9 +98,9 @@ atlas-ai/
 │   │   │       └── maps_tool.py
 │   │   └── tasks/
 │   │       ├── __init__.py
-│   │       ├── celery_app.py
-│   │       └── agent_tasks.py
-│   ├── requirements.txt
+│   │       └── agent.py           # run_agent Celery task
+│   ├── pyproject.toml
+│   ├── uv.lock
 │   ├── alembic.ini
 │   ├── alembic/
 │   │   ├── env.py
@@ -108,8 +112,6 @@ atlas-ai/
     ├── package.json
     ├── tsconfig.json
     ├── vite.config.ts
-    ├── tailwind.config.js
-    ├── postcss.config.js
     ├── src/
     │   ├── main.tsx
     │   ├── App.tsx
@@ -163,11 +165,8 @@ GOOGLE_MAPS_API_KEY=xxx
 GEMINI_API_KEY=xxx
 LLM_MODEL=gemini-2.0-flash
 
-# Whisper STT (local, no API key)
-WHISPER_MODEL_SIZE=base    # tiny, base, small, medium
-
-# Edge TTS (free, no API key)
-TTS_VOICE=en-US-AriaNeural
+# SarvamAI (STT + TTS)
+SARVAM_API_KEY=xxx
 
 # Encryption
 FERNET_KEY=xxx
@@ -204,7 +203,7 @@ services:
 
   celery-worker:
     build: ./backend
-    command: celery -A app.tasks.celery_app worker -l info
+    command: celery -A app.core.celery worker -Q agent --loglevel=info -c 2
     env_file: .env
     depends_on: [postgres, redis]
     volumes: ["./backend:/app"]
@@ -214,7 +213,7 @@ services:
 
 ## Execution Phases
 
-### Phase 1: Infrastructure & Scaffolding (~2-3h)
+### Phase 1: Infrastructure & Scaffolding ✅
 
 - `git init`, `.gitignore`
 - Create `.env.example` with all required variables
@@ -224,16 +223,15 @@ services:
   - `backend/app/core/config.py` — Pydantic v2 `BaseSettings` loading all env vars
   - `backend/app/core/database.py` — async SQLAlchemy engine + `AsyncSession` factory
   - `backend/Dockerfile` — Python 3.11-slim, install deps, run uvicorn
-  - `backend/requirements.txt`
+  - `backend/pyproject.toml` — uv-managed dependencies
 - Frontend scaffold:
   - `npm create vite@latest` with React + TypeScript
   - Install Tailwind CSS + Shadcn UI
   - `vite.config.ts` — proxy `/api` and `/ws` to `localhost:8000` for dev
-  - `postcss.config.js`, `tsconfig.json`
   - `frontend/Dockerfile` — node:18-slim, install deps, run dev server
 - Verify both servers start and talk to each other
 
-### Phase 2: Authentication & Token Encryption (~3-4h)
+### Phase 2: Authentication & Token Encryption ✅
 
 - SQLAlchemy models:
   - `User` — id, email, name, avatar_url, created_at
@@ -252,49 +250,26 @@ services:
   - `alembic revision --autogenerate` for initial migration
   - `alembic upgrade head` in startup or Docker entrypoint
 
-### Phase 2.5: Voice Loop — Walking Skeleton (~3-4h)
+### Phase 2.5: Voice Loop — Walking Skeleton ✅
 
 > **Goal: Speak into mic, hear Gemini respond aloud. No Google tools yet. Just a working voice chat.**
 
 **Backend — 3 modules:**
 
-- `agent/stt.py`:
-  ```python
-  from faster_whisper import WhisperModel
-  model = WhisperModel(settings.WHISPER_MODEL_SIZE, device="cpu")
-  
-  async def transcribe(audio_b64: str) -> str:
-      audio_bytes = base64.b64decode(audio_b64)
-      segments, _ = model.transcribe(BytesIO(audio_bytes))
-      return " ".join(seg.text for seg in segments)
-  ```
-  - Downloads model on first call (~150MB for `base`)
-  - Accepts base64 audio (webm/opus from MediaRecorder)
+- `agent/stt.py` — SarvamAI SDK speech-to-text:
+  - `transcribe(audio_b64: str) -> str`
+  - Uses `client.speech_to_text.transcribe()` with `language_code="en-IN"`
+  - Runs sync SDK call in executor
 
-- `agent/llm.py`:
-  ```python
-  from langchain_google_genai import ChatGoogleGenerativeAI
-  
-  llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=settings.GEMINI_API_KEY)
-  
-  async def chat(messages: list[dict]) -> str:
-      response = await llm.ainvoke(messages)
-      return response.content
-  ```
-  - Simple chat, no tools bound yet
-  - Takes message history, returns text
+- `agent/llm.py` — Gemini via LangChain:
+  - `chat(messages: list[dict]) -> str`
+  - Simple single-turn call, no tools bound yet
+  - 30s timeout via `asyncio.wait_for`
 
-- `agent/tts.py`:
-  ```python
-  import edge_tts
-  
-  async def synthesize(text: str, voice: str) -> AsyncGenerator[bytes, None]:
-      communicate = edge_tts.Communicate(text, voice)
-      async for chunk in communicate.stream():
-          if chunk["type"] == "audio" and chunk["data"]:
-              yield chunk["data"]
-  ```
-  - Async generator yielding MP3 chunks
+- `agent/tts.py` — SarvamAI SDK text-to-speech:
+  - `synthesize(text: str) -> AsyncGenerator[bytes, None]`
+  - Uses `client.text_to_speech.convert()` with base64 decode
+  - Yields single WAV audio chunk
 
 - `api/v1/websocket.py`:
   - `WS /api/v1/ws/{session_id}`
@@ -302,22 +277,25 @@ services:
     ```
     Client → Server: {"type": "audio", "data": "<base64_audio>"}
     Client → Server: {"type": "text", "data": "hello"}
-    
+
     Server → Client: {"type": "status", "message": "Transcribing..."}
+    Server → Client: {"type": "transcription", "text": "hello"}
     Server → Client: {"type": "status", "message": "Thinking..."}
     Server → Client: {"type": "tts_start"}
-    Server → Client: <binary MP3 chunk>
-    Server → Client: <binary MP3 chunk>
+    Server → Client: <binary WAV chunk>
     Server → Client: {"type": "tts_end"}
     Server → Client: {"type": "response", "text": "Hello! How can I help?"}
     ```
   - **Synchronous flow in this phase** — no Celery yet. STT → LLM → TTS runs inline in the WS handler.
+  - `tts_start`/`tts_end` only sent when TTS produces actual audio chunks
 
 **Frontend — minimal:**
 
 - `useAudioRecorder.ts` — MediaRecorder API, push-to-talk, exports base64 webm
-- `useWebSocket.ts` — connects to WS, handles JSON + binary frames
-- `useTTS.ts` — collects MP3 binary chunks, creates Blob, plays via `<audio>` element or AudioContext
+- `useWebSocket.ts` — connects to WS, handles JSON + binary frames, auto-reconnect
+- `useTTS.ts` — collects WAV binary chunks, concatenates, plays via WebAudio or HTMLAudioElement
+- `ChatMessage.tsx` — user (right-aligned), assistant (left-aligned), status bubbles
+- `VoiceBar.tsx` — mic button + text input + send button
 - Minimal UI: push-to-talk button + text bubble display + audio playback indicator
 - No sidebar, no cards, no aura yet — just a working voice loop
 
@@ -329,9 +307,147 @@ services:
 5. Hear Gemini's response spoken aloud
 6. See response text displayed
 
-### Phase 3: Google API Tool Suite (~4-5h)
+### Phase 3: LangGraph Agent Framework (~4-5h) ⬅️ NEXT
 
-- 5 tool modules, each as a callable function returning structured JSON:
+> **Goal: Replace the simple `chat()` call with a LangGraph agent that can reason in loops and call tools. No real tools yet — just stubs to verify the graph works.**
+
+**New dependencies:**
+```
+langgraph>=1.2.0
+langgraph-checkpoint-postgres>=3.1.0
+```
+
+**New files:**
+
+- `agent/state.py`:
+  ```python
+  from typing import Annotated, TypedDict
+  from langchain_core.messages import BaseMessage
+  from langgraph.graph.message import add_messages
+
+  class AgentState(TypedDict):
+      messages: Annotated[list[BaseMessage], add_messages]
+  ```
+  - Uses `add_messages` reducer for automatic message ID deduplication
+  - Additional fields (tool_logs, pending_confirmation) added as needed
+
+- `agent/prompts.py`:
+  - System prompt defining Atlas AI persona
+  - Tool usage rules: ask for clarification on ambiguous inputs, confirm before destructive actions, always resolve contact names before emailing
+
+- `agent/tools.py` — Stub tools with `@tool` decorator:
+  - Placeholder implementations returning "not yet implemented" messages
+  - One stub per Google service (calendar, tasks, gmail, contacts, maps)
+  - Ready to be replaced with real API calls in Phase 5
+
+- `agent/graph.py` — LangGraph `StateGraph`:
+  ```
+  START → agent (Gemini + bound tools)
+        → tools (ToolNode) ←→ agent (loop)
+        → END (when no tool_calls)
+  ```
+  - Agent node: calls `model_with_tools.invoke(state["messages"])`
+  - `ToolNode(tools)` for tool execution
+  - `tools_condition` conditional edge (agent → tools or END)
+  - `tools → agent` loop edge for multi-step reasoning
+  - `interrupt()` before sensitive tools (send email, delete event) for HITL
+  - Compile with `AsyncPostgresSaver` checkpointing
+  - `init_graph()` async function called during FastAPI lifespan
+
+**Modified files:**
+
+- `agent/llm.py`:
+  - Keep existing `chat()` function for backward compatibility
+  - Add `model_with_tools = llm.bind_tools(tools)` export
+  - Export both `chat` and `model_with_tools`
+
+- `pyproject.toml` — add langgraph dependencies
+
+**Verify:**
+1. Graph compiles without errors
+2. Simple text input → agent responds (no tools)
+3. Tool stub call → agent invokes tool → returns stub response
+4. Multi-step: agent calls multiple tools in sequence
+5. HITL: agent calls sensitive tool → graph pauses → resumes on approval
+
+### Phase 4: Celery + Redis Streams (~4-5h)
+
+> **Goal: Move agent execution off the WebSocket handler into a Celery worker. Stream real-time events back via Redis Streams.**
+
+**New dependencies:**
+```
+celery[redis]>=5.4.0
+redis>=5.0.0
+```
+
+**New files:**
+
+- `core/celery.py` — Celery app initialization:
+  ```python
+  celery_app = Celery(
+      "atlas_ai",
+      broker=settings.REDIS_URL,           # DB 0
+      backend=settings.REDIS_URL + "/1",    # DB 1
+  )
+  ```
+  - `task_acks_late=True` — acknowledge after completion
+  - `worker_prefetch_multiplier=1` — one task at a time per worker
+  - `task_time_limit=600` — 10-minute hard timeout
+
+- `tasks/__init__.py`
+
+- `tasks/agent.py` — `run_agent` Celery task:
+  - Builds LangGraph graph
+  - Runs via `asyncio.run()` (sync Celery task → async LangGraph)
+  - Publishes events to Redis Stream (`XADD stream:{session_id}`)
+  - Event types: `status`, `tool_start`, `tool_end`, `token`, `hitl_request`, `hitl_response`, `done`, `error`
+  - Uses `graph.astream_events()` for fine-grained streaming
+
+**Architecture flow:**
+```
+Client sends message
+  → WebSocket handler enqueues Celery task (non-blocking)
+  → Handler subscribes to Redis Stream (`XREAD`)
+  → Celery worker picks up task
+    → Runs LangGraph graph
+    → Publishes events: XADD stream:{session_id}
+  → WebSocket handler reads stream, forwards to client
+  → On "done"/"error" event, handler stops listening
+```
+
+**Modified files:**
+
+- `api/v1/websocket.py` — major refactor:
+  - Replace blocking `chat()` with Celery enqueue + Redis Stream subscribe
+  - Use `redis.asyncio` for stream reading (`XREAD`)
+  - Handle HITL: receive `hitl_request` event → send to client → await client response → resume graph with `Command(resume=...)`
+  - Store message history in Redis (`session:{id}:messages`) instead of in-memory dict
+  - Idempotency: generate `task_id` per request, pass to Celery
+
+- `core/config.py` — add `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` (optional, can derive from REDIS_URL)
+
+- `pyproject.toml` — add celery, redis
+
+- `docker-compose.yml` — add Celery worker service:
+  ```yaml
+  celery-worker:
+    build: ./backend
+    command: celery -A app.core.celery worker -Q agent --loglevel=info -c 2
+    depends_on: [redis]
+  ```
+
+**Verify:**
+1. WebSocket receives message → task enqueued → no blocking
+2. Celery worker picks up task → LangGraph runs → events stream back
+3. Multiple concurrent clients don't block each other
+4. Worker crash → task retry (acks_late)
+5. HITL flow: interrupt → client approval → graph resumes
+
+### Phase 5: Google API Tool Suite (~4-5h)
+
+> **Goal: Replace stub tools with real Google API integrations. Test each tool against the live LangGraph agent.**
+
+- 5 tool modules, each wrapping a Google service:
 
 - `tools/calendar_tool.py`:
   - `list_events(start: str, end: str) -> list[dict]` — query events in date range
@@ -339,17 +455,20 @@ services:
   - `update_event(event_id: str, **fields) -> dict`
   - `delete_event(event_id: str) -> bool`
   - Uses `googleapiclient.discovery.build("calendar", "v3", credentials=creds)`
+  - `delete_event` wrapped with `interrupt()` for HITL confirmation
 
 - `tools/tasks_tool.py`:
   - `list_tasks(tasklist: str = "@default") -> list[dict]`
   - `create_task(title: str, notes: str, due: str) -> dict`
   - `complete_task(task_id: str) -> dict`
   - `delete_task(task_id: str) -> bool`
+  - `delete_task` wrapped with `interrupt()` for HITL confirmation
 
 - `tools/gmail_tool.py`:
   - `draft_email(to: str, subject: str, body: str) -> dict`
   - `send_email(to: str, subject: str, body: str) -> dict`
   - Uses `gmail.users().drafts()` and `gmail.users().messages()`
+  - `send_email` wrapped with `interrupt()` for HITL confirmation
 
 - `tools/contacts_tool.py`:
   - `search_contacts(query: str) -> list[dict]` — search by name, return email/phone
@@ -361,65 +480,8 @@ services:
   - Uses API key auth (not OAuth): `requests.get("https://maps.googleapis.com/maps/api/distancematrix/json", params=...)`
 
 - Each tool: accepts user credentials (or API key) + params → returns structured dict
+- Token refresh: check `expires_at` before each Google API call, refresh if expired
 - Unit tests per tool with mock credentials/responses
-
-### Phase 4: LangGraph Agent with Tools (~4-5h)
-
-- `agent/state.py`:
-  ```python
-  class AgentState(TypedDict):
-      messages: list[BaseMessage]
-      user_id: str
-      audio_b64: str | None
-      tool_logs: list[str]
-      final_response: str
-      pending_confirmation: dict | None  # for HITL
-  ```
-
-- `agent/prompts.py`:
-  - System prompt defining Atlas AI persona
-  - Tool descriptions in natural language
-  - Rules: ask for clarification on ambiguous inputs, confirm before destructive actions, always resolve contact names before emailing
-
-- `agent/graph.py` — LangGraph `StateGraph`:
-  ```
-  START → speech_to_text (conditional: skip if text input)
-        → reasoning_agent (Gemini + bound tools)
-        → tool_executor (ToolNode)
-        → HITL check (conditional: pause if pending_confirmation)
-        → generate_final_response
-        → END
-  ```
-  - Tool binding: use `llm.bind_tools([calendar_tool, tasks_tool, ...])` — Gemini supports function calling
-  - `tool_executor` node uses LangGraph's `ToolNode` to dispatch calls
-  - Error handling: wrap each tool call in try/except, log failures to `tool_logs`, retry once on transient errors
-  - `PostgresSaver` for checkpointing conversation state
-
-### Phase 5: Celery + Redis Pub/Sub (~3-4h)
-
-- `tasks/celery_app.py`:
-  ```python
-  celery = Celery("atlas", broker=settings.REDIS_URL)
-  ```
-- `tasks/agent_tasks.py`:
-  ```python
-  @celery.task
-  def execute_agent_graph(session_id: str, user_id: str, payload: dict):
-      # Run LangGraph graph, publish steps to Redis Pub/Sub
-  ```
-- Redis Pub/Sub channel: `agent:{session_id}`
-  - Step updates published as: `{"type": "status", "message": "Checking Calendar..."}`
-  - Final response: `{"type": "response", "text": "..."}`
-  - TTS audio chunks: `{"type": "tts_chunk"}` + binary data via separate mechanism
-
-- Refactor WebSocket endpoint:
-  1. Receive audio/text from client
-  2. Enqueue Celery task (returns task_id)
-  3. Subscribe to Redis channel `agent:{session_id}`
-  4. Stream events from Redis back to client as they arrive
-  5. TTS: after final text response, stream edge-tts MP3 chunks over WS
-
-- Add Celery + celery-redis to `requirements.txt`
 
 ### Phase 6: Frontend Core UI (~5-6h)
 
@@ -440,7 +502,7 @@ services:
 
 - `hooks/useWebSocket.ts` — connect, auto-reconnect on disconnect, parse JSON events, handle binary audio
 - `hooks/useAudioRecorder.ts` — MediaRecorder, push-to-talk state, base64 export
-- `hooks/useTTS.ts` — collect MP3 chunks from WS binary frames, play via `<audio>` element
+- `hooks/useTTS.ts` — collect WAV chunks from WS binary frames, play via WebAudio or HTMLAudioElement
 - `lib/api.ts` — Axios instance for REST calls (OAuth redirect, user profile)
 
 ### Phase 7: Frontend Visual System (~4-5h)
@@ -483,6 +545,7 @@ services:
   - Ambiguous contact name → ask for clarification
   - Invalid time slot → suggest alternatives
   - WebSocket disconnect → auto-reconnect + resume
+  - Celery worker crash → task retry via acks_late
 
 - Error states in UI:
   - Auth expired banner with "Reconnect" button
