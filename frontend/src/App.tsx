@@ -5,6 +5,7 @@ import { useTTS, unlockAudio } from "@/hooks/useTTS";
 import { LoginButton } from "@/components/LoginButton";
 import { UserBadge } from "@/components/UserBadge";
 import { ChatMessage } from "@/components/ChatMessage";
+import { ToolCard } from "@/components/ToolCard";
 import { VoiceBar } from "@/components/VoiceBar";
 
 const TOOL_LABELS: Record<string, string> = {
@@ -25,8 +26,9 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 interface Message {
-  role: "user" | "assistant" | "status";
+  role: "user" | "assistant" | "status" | "card";
   content: string;
+  card?: any;
 }
 
 function App() {
@@ -113,6 +115,12 @@ function App() {
       setMessages((prev) => {
         const next = prev.filter((m) => m.role !== "status");
         next.push({ role: "status", content: "Thinking..." });
+        return next;
+      });
+    } else if (lastMessage.type === "tool_result" && (lastMessage as any).card) {
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.role !== "status");
+        next.push({ role: "card", content: "", card: (lastMessage as any).card });
         return next;
       });
     } else if (lastMessage.type === "status" && lastMessage.message) {
@@ -212,9 +220,13 @@ function App() {
           </div>
         ) : (
           <>
-            {messages.map((msg, i) => (
-              <ChatMessage key={i} role={msg.role} content={msg.content} />
-            ))}
+            {messages.map((msg, i) =>
+              msg.role === "card" && msg.card ? (
+                <ToolCard key={i} card={msg.card} />
+              ) : (
+                <ChatMessage key={i} role={msg.role as any} content={msg.content} />
+              )
+            )}
             <div ref={messagesEndRef} />
           </>
         )}

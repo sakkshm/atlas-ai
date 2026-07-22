@@ -78,7 +78,7 @@ async def websocket_endpoint(
     websocket: WebSocket, session_id: str, token: str = Query(...)
 ):
     try:
-        verify_session_token(token)
+        user_id = verify_session_token(token)
     except Exception:
         await websocket.close(code=4003, reason="Invalid token")
         return
@@ -148,6 +148,7 @@ async def websocket_endpoint(
                     "task_id": task_id,
                     "session_id": session_id,
                     "message_history": list(message_history),
+                    "user_id": user_id,
                 },
                 task_id=task_id,
                 queue="agent",
