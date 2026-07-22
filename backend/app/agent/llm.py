@@ -3,7 +3,7 @@ import asyncio
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts import get_system_prompt
 from app.agent.tools import tools
 from app.core.config import settings
 
@@ -30,7 +30,7 @@ def get_model_with_tools() -> ChatGoogleGenerativeAI:
 
 
 async def chat(messages: list[dict]) -> str:
-    langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
+    langchain_messages = [SystemMessage(content=get_system_prompt())]
     for msg in messages:
         if msg["role"] == "user":
             langchain_messages.append(HumanMessage(content=msg["content"]))

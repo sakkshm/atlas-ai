@@ -5,7 +5,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.agent.llm import get_model_with_tools
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts import get_system_prompt
 from app.agent.state import AgentState
 from app.agent.tools import tools
 
@@ -54,7 +54,7 @@ MAX_CONTEXT_MESSAGES = 40
 async def run_agent(messages: list[dict], thread_id: str, user_id: str = "") -> str:
     from langchain_core.messages import AIMessage, HumanMessage
 
-    lc_messages = [SystemMessage(content=SYSTEM_PROMPT)]
+    lc_messages = [SystemMessage(content=get_system_prompt())]
 
     recent = messages[-MAX_CONTEXT_MESSAGES:] if len(messages) > MAX_CONTEXT_MESSAGES else messages
 

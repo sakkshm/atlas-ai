@@ -134,7 +134,7 @@ async def _execute_agent(
     from langgraph.prebuilt import ToolNode, tools_condition
 
     from app.agent.llm import get_model_with_tools
-    from app.agent.prompts import SYSTEM_PROMPT
+    from app.agent.prompts import get_system_prompt
     from app.agent.state import AgentState
     from app.agent.tools import tools
 
@@ -151,7 +151,7 @@ async def _execute_agent(
     builder.add_edge("tools", "agent")
     graph = builder.compile()
 
-    lc_messages = [SystemMessage(content=SYSTEM_PROMPT)]
+    lc_messages = [SystemMessage(content=get_system_prompt())]
 
     recent = message_history[-MAX_CONTEXT_MESSAGES:] if len(message_history) > MAX_CONTEXT_MESSAGES else message_history
 
