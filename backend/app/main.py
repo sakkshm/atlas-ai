@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.sessions import router as sessions_router
+from app.api.v1.user_settings import router as user_settings_router
 from app.api.v1.websocket import router as ws_router
 from app.core.config import settings
 
@@ -30,6 +32,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(sessions_router, prefix="/api/v1")
+app.include_router(user_settings_router, prefix="/api/v1")
 app.include_router(ws_router, prefix="/api/v1")
 
 

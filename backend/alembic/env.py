@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import settings
 from app.core.database import Base
-from app.models import OAuthToken, User  
+from app.models import Message, OAuthToken, Session, User, UserSettings  
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
