@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MessageSquare, Plus, Settings, LogOut, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,8 +26,7 @@ function timeAgo(dateStr: string): string {
 export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { sessions, removeSession } = useSessions(token);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const { sessions } = useSessions(token);
 
   function handleNewChat() {
     navigate("/app");
@@ -38,18 +36,6 @@ export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) 
   function handleSelectSession(id: string) {
     navigate(`/app/c/${id}`);
     onClose();
-  }
-
-  async function handleDelete(e: React.MouseEvent, id: string) {
-    e.stopPropagation();
-    if (confirmDelete === id) {
-      await removeSession(id);
-      if (sessionId === id) navigate("/");
-      setConfirmDelete(null);
-    } else {
-      setConfirmDelete(id);
-      setTimeout(() => setConfirmDelete(null), 3000);
-    }
   }
 
   return (
@@ -63,14 +49,14 @@ export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) 
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full w-72 bg-background border-r border-border
+          fixed top-0 left-0 z-50 h-full w-72 glass border-r border-white/[0.08]
           flex flex-col transition-transform duration-200
           lg:relative lg:translate-x-0 lg:z-auto
           ${open ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h1 className="text-sm font-semibold tracking-tight">Atlas AI</h1>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] shrink-0">
+          <h1 className="font-heading text-lg tracking-[0.01em]">Atlas AI</h1>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -81,7 +67,7 @@ export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) 
           </Button>
         </div>
 
-        <div className="p-2">
+        <div className="p-2 shrink-0">
           <Button
             variant="outline"
             className="w-full justify-start gap-2"
@@ -98,18 +84,18 @@ export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) 
               key={s.id}
               onClick={() => handleSelectSession(s.id)}
               className={`
-                w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors group
+                w-full text-left px-3 py-2 rounded-lg text-sm transition-colors group
                 ${
                   s.id === sessionId
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    ? "bg-white/[0.06] text-foreground"
+                    : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                 }
               `}
             >
               <div className="flex items-center gap-2">
-                <MessageSquare className="size-3.5 shrink-0 opacity-50" />
+                <MessageSquare className="size-3.5 shrink-0 opacity-40" />
                 <span className="truncate flex-1">{s.title}</span>
-                <span className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <span className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-muted-foreground">
                   {timeAgo(s.updated_at)}
                 </span>
               </div>
@@ -117,12 +103,12 @@ export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) 
           ))}
         </div>
 
-        <div className="border-t border-border p-3">
+        <div className="border-t border-white/[0.08] p-3 shrink-0">
           <div className="flex items-center gap-2">
             {user.avatar_url ? (
               <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+              <div className="w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center text-xs font-medium">
                 {user.name[0]}
               </div>
             )}
