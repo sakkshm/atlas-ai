@@ -10,6 +10,9 @@ from app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.agent.graph import init_graph
+
+    await init_graph()
     yield
     from app.core.database import engine
 

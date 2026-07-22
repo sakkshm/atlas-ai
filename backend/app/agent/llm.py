@@ -3,9 +3,12 @@ import asyncio
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.tools import tools
 from app.core.config import settings
 
 _llm: ChatGoogleGenerativeAI | None = None
+_model_with_tools: ChatGoogleGenerativeAI | None = None
 
 
 def _get_llm() -> ChatGoogleGenerativeAI:
@@ -19,12 +22,11 @@ def _get_llm() -> ChatGoogleGenerativeAI:
     return _llm
 
 
-SYSTEM_PROMPT = (
-    "You are Atlas AI, a voice-enabled personal assistant. "
-    "You help users manage their Google Workspace — calendar, tasks, email, contacts, and maps. "
-    "Respond concisely and naturally, as if speaking aloud. "
-    "Keep answers under 3 sentences unless the user asks for detail."
-)
+def get_model_with_tools() -> ChatGoogleGenerativeAI:
+    global _model_with_tools
+    if _model_with_tools is None:
+        _model_with_tools = _get_llm().bind_tools(tools)
+    return _model_with_tools
 
 
 async def chat(messages: list[dict]) -> str:

@@ -3,7 +3,7 @@ import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from app.agent.llm import chat
+from app.agent.graph import run_agent
 from app.agent.stt import transcribe
 from app.agent.tts import synthesize
 from app.core.security import verify_session_token
@@ -73,11 +73,11 @@ async def websocket_endpoint(
                     {"type": "status", "message": "Thinking..."}
                 )
                 try:
-                    response = await chat(message_history)
+                    response = await run_agent(message_history, session_id)
                 except Exception as e:
-                    logger.exception("LLM failed")
+                    logger.exception("Agent failed")
                     await websocket.send_json(
-                        {"type": "error", "message": f"LLM failed: {e}"}
+                        {"type": "error", "message": f"Agent failed: {e}"}
                     )
                     message_history.pop()
                     continue
@@ -115,11 +115,11 @@ async def websocket_endpoint(
                     {"type": "status", "message": "Thinking..."}
                 )
                 try:
-                    response = await chat(message_history)
+                    response = await run_agent(message_history, session_id)
                 except Exception as e:
-                    logger.exception("LLM failed")
+                    logger.exception("Agent failed")
                     await websocket.send_json(
-                        {"type": "error", "message": f"LLM failed: {e}"}
+                        {"type": "error", "message": f"Agent failed: {e}"}
                     )
                     message_history.pop()
                     continue
