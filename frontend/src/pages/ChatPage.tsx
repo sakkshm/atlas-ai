@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+
 import { toast } from "sonner";
 import { useWebSocket, type WSStatus } from "@/hooks/useWebSocket";
 import { useTTS, unlockAudio } from "@/hooks/useTTS";
@@ -260,22 +261,27 @@ export function ChatPage({ token }: ChatPageProps) {
       <main className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hidden max-w-3xl mx-auto w-full">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground text-sm">
-              Start a conversation with voice or text
-            </p>
+            <div className="text-center space-y-2">
+              <p className="text-muted-foreground text-sm">
+                Start a conversation with voice or text
+              </p>
+            </div>
           </div>
         ) : (
-          <>
-            {messages.map((msg, i) =>
-              msg.role === "card" && msg.card ? (
-                <ToolCard key={i} card={msg.card} />
-              ) : (
-                <ChatMessage key={i} role={msg.role as any} content={msg.content} />
-              )
-            )}
-            <div ref={messagesEndRef} />
-          </>
+            messages.map((msg, i) => {
+              const prevRole = i > 0 ? messages[i - 1].role : null;
+              const prevSide = prevRole === "user" ? "user" : "assistant";
+              const curSide = msg.role === "user" ? "user" : "assistant";
+              const crossSide = prevRole !== null && prevSide !== curSide;
+              const spacing = crossSide ? "mt-6" : "mt-1";
+
+              if (msg.role === "card" && msg.card) {
+                return <ToolCard key={i} card={msg.card} className={spacing} />;
+              }
+              return <ChatMessage key={i} role={msg.role as any} content={msg.content} className={spacing} />;
+            })
         )}
+        <div ref={messagesEndRef} />
       </main>
 
       <div className="max-w-3xl mx-auto w-full">

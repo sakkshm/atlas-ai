@@ -5,6 +5,7 @@ interface ToolCardProps {
     type: string;
     [key: string]: any;
   };
+  className?: string;
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -126,20 +127,20 @@ function ExternalLink({ href, children }: { href: string; children: React.ReactN
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-500 dark:text-blue-400 text-xs mt-2 inline-block hover:underline"
+      className="text-cyan-400 text-xs mt-2 inline-block hover:underline"
     >
       {children}
     </a>
   );
 }
 
-export function ToolCard({ card }: ToolCardProps) {
+export function ToolCard({ card, className = "" }: ToolCardProps) {
   const Icon = ICON_MAP[card.type] || MapPin;
   const label = LABEL_MAP[card.type] || card.type;
 
   return (
-    <div className="flex justify-start mb-3">
-      <div className="w-80 rounded-2xl px-4 py-3 text-sm bg-card border border-border text-card-foreground">
+    <div className={`flex justify-start mb-2 fade-in ${className}`}>
+      <div className="w-[28rem] rounded-xl px-4 py-3 text-sm glass text-foreground">
         <div className="flex items-center gap-2 mb-2 text-muted-foreground">
           <Icon className="size-3.5" />
           <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
@@ -180,22 +181,22 @@ export function ToolCard({ card }: ToolCardProps) {
             </div>
             {card.tasks?.slice(0, 5).map((task: any, i: number) => (
               <div key={i} className="flex items-center gap-1.5 text-muted-foreground text-xs mt-1">
-                <CheckSquare className={`size-3 shrink-0 ${task.status === "completed" ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
-                <span className={task.status === "completed" ? "line-through text-muted-foreground/50" : ""}>
+                <CheckSquare className={`size-3 shrink-0 ${task.status === "completed" ? "opacity-30" : "opacity-50"}`} />
+                <span className={task.status === "completed" ? "line-through opacity-50" : ""}>
                   {task.title}
                 </span>
                 {task.notes && task.status !== "completed" && (
-                  <span className="text-muted-foreground/50 truncate">· {task.notes}</span>
+                  <span className="opacity-50 truncate">· {task.notes}</span>
                 )}
                 {task.due && task.status !== "completed" && (
-                  <span className="text-muted-foreground/50 ml-auto shrink-0">
+                  <span className="opacity-50 ml-auto shrink-0">
                     {new Date(task.due).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                   </span>
                 )}
               </div>
             ))}
             {card.count > 5 && (
-              <div className="text-muted-foreground/50 text-xs mt-1">+{card.count - 5} more</div>
+              <div className="opacity-50 text-xs mt-1">+{card.count - 5} more</div>
             )}
           </div>
         )}
@@ -206,7 +207,7 @@ export function ToolCard({ card }: ToolCardProps) {
             <div className="text-muted-foreground text-xs mt-1">
               {formatEventTime(card.start)}
               {calcDuration(card.start, card.end) && (
-                <span className="text-muted-foreground/70"> · {calcDuration(card.start, card.end)}</span>
+                <span className="opacity-70"> · {calcDuration(card.start, card.end)}</span>
               )}
             </div>
             <ExternalLink href={card.htmlLink}>Open in Google Calendar</ExternalLink>
@@ -219,7 +220,7 @@ export function ToolCard({ card }: ToolCardProps) {
             <div className="text-muted-foreground text-xs mt-1">
               {formatEventTime(card.start)}
               {calcDuration(card.start, card.end) && (
-                <span className="text-muted-foreground/70"> · {calcDuration(card.start, card.end)}</span>
+                <span className="opacity-70"> · {calcDuration(card.start, card.end)}</span>
               )}
             </div>
             <ExternalLink href={card.htmlLink}>Open in Google Calendar</ExternalLink>
@@ -235,15 +236,15 @@ export function ToolCard({ card }: ToolCardProps) {
             <div className="font-medium">{card.count} event{card.count !== 1 ? "s" : ""}</div>
             {card.events?.slice(0, 5).map((event: any, i: number) => (
               <div key={i} className="text-muted-foreground text-xs mt-1 flex items-center gap-1.5">
-                <Calendar className="size-3 shrink-0" />
+                <Calendar className="size-3 shrink-0 opacity-50" />
                 <span>{event.summary}</span>
-                <span className="text-muted-foreground/70 ml-auto shrink-0">
+                <span className="opacity-70 ml-auto shrink-0">
                   {formatEventTime(event.start || event.date_range)}
                 </span>
               </div>
             ))}
             {card.count > 5 && (
-              <div className="text-muted-foreground/50 text-xs mt-1">+{card.count - 5} more</div>
+              <div className="opacity-50 text-xs mt-1">+{card.count - 5} more</div>
             )}
           </div>
         )}
@@ -260,7 +261,7 @@ export function ToolCard({ card }: ToolCardProps) {
             <div className="font-medium">{card.subject}</div>
             <div className="text-muted-foreground text-xs mt-1">To {card.to?.split("<")[0].trim() || card.to}</div>
             {card.body_preview && (
-              <div className="text-muted-foreground/70 text-xs mt-1 line-clamp-2 italic">"{card.body_preview}"</div>
+              <div className="opacity-70 text-xs mt-1 line-clamp-2 italic">"{card.body_preview}"</div>
             )}
           </div>
         )}
@@ -270,24 +271,24 @@ export function ToolCard({ card }: ToolCardProps) {
             <div className="font-medium">{card.count} email{card.count !== 1 ? "s" : ""}</div>
             {card.emails?.slice(0, 5).map((email: any, i: number) => (
               <div key={i}>
-                {i > 0 && <div className="border-t border-border my-1.5" />}
+                {i > 0 && <div className="border-t border-white/[0.08] my-1.5" />}
                 <div className="text-xs">
                   <div className="flex items-center gap-1.5">
-                    <span className={`size-1.5 rounded-full shrink-0 ${email.is_unread ? "bg-blue-500" : "bg-transparent"}`} />
+                    <span className={`size-1.5 rounded-full shrink-0 ${email.is_unread ? "bg-cyan-400" : "bg-transparent"}`} />
                     <span className={email.is_unread ? "font-medium" : "text-muted-foreground"}>
                       {email.subject || "(no subject)"}
                     </span>
-                    <span className="text-muted-foreground/50 ml-auto shrink-0">{relativeTime(email.date)}</span>
+                    <span className="opacity-50 ml-auto shrink-0">{relativeTime(email.date)}</span>
                   </div>
-                  <div className="text-muted-foreground/70 pl-3 truncate">
+                  <div className="opacity-70 pl-3 truncate">
                     {email.from?.split("<")[0].trim()}
-                    {email.snippet && <span className="text-muted-foreground/50"> — {email.snippet}</span>}
+                    {email.snippet && <span className="opacity-50"> — {email.snippet}</span>}
                   </div>
                 </div>
               </div>
             ))}
             {card.count > 5 && (
-              <div className="text-muted-foreground/50 text-xs mt-1">+{card.count - 5} more</div>
+              <div className="opacity-50 text-xs mt-1">+{card.count - 5} more</div>
             )}
           </div>
         )}
@@ -299,11 +300,11 @@ export function ToolCard({ card }: ToolCardProps) {
               From {card.from?.split("<")[0].trim()}
             </div>
             {card.to && (
-              <div className="text-muted-foreground/70 text-xs">
+              <div className="opacity-70 text-xs">
                 To {card.to?.split("<")[0].trim()}
               </div>
             )}
-            <div className="text-muted-foreground/70 text-xs">{formatDateShort(card.date)}</div>
+            <div className="opacity-70 text-xs">{formatDateShort(card.date)}</div>
             {card.body_preview && (
               <div className="text-muted-foreground text-xs mt-2 line-clamp-4 whitespace-pre-wrap">{card.body_preview}</div>
             )}
@@ -316,15 +317,15 @@ export function ToolCard({ card }: ToolCardProps) {
             {card.contacts?.slice(0, 5).map((contact: any, i: number) => (
               <div key={i} className="text-muted-foreground text-xs mt-1">
                 <div className="flex items-center gap-1.5">
-                  <User className="size-3 shrink-0" />
+                  <User className="size-3 shrink-0 opacity-50" />
                   <span>{contact.name}</span>
                 </div>
-                {contact.email && <div className="text-muted-foreground/70 ml-4.5">{contact.email}</div>}
-                {contact.phone && <div className="text-muted-foreground/70 ml-4.5">{contact.phone}</div>}
+                {contact.email && <div className="opacity-70 ml-4.5">{contact.email}</div>}
+                {contact.phone && <div className="opacity-70 ml-4.5">{contact.phone}</div>}
               </div>
             ))}
             {card.count > 5 && (
-              <div className="text-muted-foreground/50 text-xs mt-1">+{card.count - 5} more</div>
+              <div className="opacity-50 text-xs mt-1">+{card.count - 5} more</div>
             )}
           </div>
         )}
@@ -334,11 +335,11 @@ export function ToolCard({ card }: ToolCardProps) {
             {card.results?.map((result: any, i: number) => (
               <div key={i} className="text-muted-foreground text-xs mt-1">
                 <div className="font-medium">{result.distance} · {result.duration}</div>
-                <div className="text-muted-foreground/70">{result.origin} → {result.destination}</div>
+                <div className="opacity-70">{result.origin} → {result.destination}</div>
               </div>
             ))}
             {card.mode && (
-              <div className="text-muted-foreground/50 text-xs mt-1.5">{MODE_LABEL[card.mode] || card.mode}</div>
+              <div className="opacity-50 text-xs mt-1.5">{MODE_LABEL[card.mode] || card.mode}</div>
             )}
           </div>
         )}
@@ -346,13 +347,13 @@ export function ToolCard({ card }: ToolCardProps) {
         {card.type === "route" && (
           <div>
             {card.routes?.slice(0, 2).map((route: any, i: number) => (
-              <div key={i} className={i > 0 ? "mt-2 pt-2 border-t border-border" : ""}>
+              <div key={i} className={i > 0 ? "mt-2 pt-2 border-t border-white/[0.08]" : ""}>
                 <div className="font-medium">{route.distance} · {route.duration}</div>
                 <div className="text-muted-foreground text-xs">{route.start_address} → {route.end_address}</div>
-                {route.summary && <div className="text-muted-foreground/70 text-xs">via {route.summary}</div>}
+                {route.summary && <div className="opacity-70 text-xs">via {route.summary}</div>}
               </div>
             ))}
-            <div className="flex items-center gap-2 text-muted-foreground/50 text-xs mt-1.5">
+            <div className="flex items-center gap-2 opacity-50 text-xs mt-1.5">
               {card.mode && <span>{MODE_LABEL[card.mode] || card.mode}</span>}
               {card.step_count > 0 && <span>{card.step_count} steps</span>}
             </div>
