@@ -4,33 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Layout } from "@/components/layout/Layout";
 import { ChatPage } from "@/pages/ChatPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { LandingPage } from "@/pages/LandingPage";
 import { LoginButton } from "@/components/LoginButton";
-import { Link } from "react-router-dom";
-
-function LandingPage() {
-  const { isAuthenticated } = useAuth();
-
-  return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-      <div className="text-center space-y-6">
-        <h1 className="text-4xl font-semibold tracking-tight">Atlas AI</h1>
-        <p className="text-muted-foreground max-w-md">
-          Your voice-powered assistant for Google Calendar, Gmail, Tasks, and more.
-        </p>
-        {isAuthenticated ? (
-          <Link
-            to="/app"
-            className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground px-6 py-2.5 text-sm font-medium hover:bg-primary/80 transition-colors"
-          >
-            Open App
-          </Link>
-        ) : (
-          <LoginButton />
-        )}
-      </div>
-    </div>
-  );
-}
 
 function AppRoutes() {
   const { user, loading, logout, isAuthenticated } = useAuth();
@@ -38,7 +13,7 @@ function AppRoutes() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground text-sm">Loading...</div>
       </div>
     );
   }
@@ -47,7 +22,7 @@ function AppRoutes() {
     return (
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-medium">Atlas AI</h1>
+          <h1 className="text-2xl font-medium tracking-tight">Atlas AI</h1>
           <p className="text-muted-foreground text-sm">Please sign in to continue</p>
           <LoginButton />
         </div>
