@@ -2,7 +2,8 @@ import json
 import logging
 from typing import Annotated
 
-from langchain_core.tools import InjectedToolArg, tool
+from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -14,18 +15,16 @@ def _build_people_service(creds):
 
 
 @tool
-def search_contacts(
+async def search_contacts(
     query: str,
-    user_id: Annotated[str, InjectedToolArg] = "",
+    user_id: Annotated[str, InjectedState("user_id")] = "",
 ) -> str:
     """Search Google Contacts by name. Returns email and phone. Args: query (name to search)."""
     try:
-        from app.agent.tools.credentials import get_credentials_sync
+        from app.agent.tools.credentials import get_google_credentials
 
-        creds = get_credentials_sync(user_id)
+        creds = await get_google_credentials(user_id)
         service = _build_people_service(creds)
-
-        service.people().searchContacts(query="", readMask="names").execute()
 
         results = (
             service.people()
@@ -52,7 +51,16 @@ def search_contacts(
                 }
             )
 
-        return json.dumps({"contacts": contacts, "count": len(contacts)})
+        return json.dumps({
+            "contacts": contacts,
+            "count": len(contacts),
+            "card": {
+                "type": "contacts_list",
+                "contacts": contacts,
+                "count": len(contacts),
+                "query": query,
+            },
+        })
 
     except HttpError as e:
         logger.exception("People API error")

@@ -25,7 +25,7 @@ async def _drain_stream(
     task_id: str,
     last_id: str = "0",
     timeout: float = 300,
-) -> str | None:
+) -> tuple[str | None, str]:
     deadline = asyncio.get_event_loop().time() + timeout
     response_text = None
 
@@ -70,7 +70,7 @@ async def _drain_stream(
         if response_text is not None or event["type"] == "error":
             break
 
-    return response_text
+    return response_text, last_id
 
 
 @router.websocket("/ws/{session_id}")
@@ -154,7 +154,7 @@ async def websocket_endpoint(
                 queue="agent",
             )
 
-            response_text = await _drain_stream(
+            response_text, last_id = await _drain_stream(
                 redis_client, stream_key, websocket, task_id, last_id
             )
 
@@ -180,8 +180,6 @@ async def websocket_endpoint(
                 await websocket.send_json(
                     {"type": "response", "text": response_text}
                 )
-
-            last_id = ">"
 
     except WebSocketDisconnect:
         pass

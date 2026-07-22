@@ -55,7 +55,14 @@ def distance_matrix(
                         }
                     )
 
-        return json.dumps({"results": results})
+        return json.dumps({
+            "results": results,
+            "card": {
+                "type": "distance_matrix",
+                "results": results,
+                "mode": mode,
+            },
+        })
 
     except Exception as e:
         logger.exception("Failed to get distance matrix")
@@ -114,7 +121,14 @@ def get_directions(
                 }
             )
 
-        return json.dumps({"routes": routes})
+        return json.dumps({
+            "routes": routes,
+            "card": {
+                "type": "route",
+                "routes": routes,
+                "mode": mode,
+            },
+        })
 
     except Exception as e:
         logger.exception("Failed to get directions")

@@ -4,7 +4,8 @@ import logging
 from email.message import EmailMessage
 from typing import Annotated
 
-from langchain_core.tools import InjectedToolArg, tool
+from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -24,17 +25,17 @@ def _create_mime_message(to: str, subject: str, body: str) -> str:
 
 
 @tool
-def draft_email(
+async def draft_email(
     to: str,
     subject: str,
     body: str,
-    user_id: Annotated[str, InjectedToolArg] = "",
+    user_id: Annotated[str, InjectedState("user_id")] = "",
 ) -> str:
     """Create a Gmail draft. Args: to (email address), subject, body."""
     try:
-        from app.agent.tools.credentials import get_credentials_sync
+        from app.agent.tools.credentials import get_google_credentials
 
-        creds = get_credentials_sync(user_id)
+        creds = await get_google_credentials(user_id)
         service = _build_gmail_service(creds)
 
         raw = _create_mime_message(to, subject, body)
@@ -46,14 +47,18 @@ def draft_email(
             .execute()
         )
 
-        return json.dumps(
-            {
-                "id": draft["id"],
+        return json.dumps({
+            "id": draft["id"],
+            "to": to,
+            "subject": subject,
+            "status": "draft_created",
+            "card": {
+                "type": "email_drafted",
                 "to": to,
                 "subject": subject,
-                "status": "draft_created",
-            }
-        )
+                "body_preview": body[:200],
+            },
+        })
 
     except HttpError as e:
         logger.exception("Gmail API error")
@@ -64,17 +69,17 @@ def draft_email(
 
 
 @tool
-def send_email(
+async def send_email(
     to: str,
     subject: str,
     body: str,
-    user_id: Annotated[str, InjectedToolArg] = "",
+    user_id: Annotated[str, InjectedState("user_id")] = "",
 ) -> str:
     """Send an email via Gmail. Args: to (email address), subject, body."""
     try:
-        from app.agent.tools.credentials import get_credentials_sync
+        from app.agent.tools.credentials import get_google_credentials
 
-        creds = get_credentials_sync(user_id)
+        creds = await get_google_credentials(user_id)
         service = _build_gmail_service(creds)
 
         raw = _create_mime_message(to, subject, body)
@@ -86,14 +91,17 @@ def send_email(
             .execute()
         )
 
-        return json.dumps(
-            {
-                "id": message["id"],
+        return json.dumps({
+            "id": message["id"],
+            "to": to,
+            "subject": subject,
+            "status": "sent",
+            "card": {
+                "type": "email_sent",
                 "to": to,
                 "subject": subject,
-                "status": "sent",
-            }
-        )
+            },
+        })
 
     except HttpError as e:
         logger.exception("Gmail API error")

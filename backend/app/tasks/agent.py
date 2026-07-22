@@ -44,6 +44,7 @@ def run_agent_task(
     user_id: str = "",
 ):
     channel = f"stream:{session_id}"
+    logger.info("run_agent_task received user_id=%r", user_id)
 
     try:
         _publish(channel, {
@@ -89,12 +90,12 @@ async def _execute_agent(
 ) -> tuple[str, list[dict]]:
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
     from langgraph.graph import END, START, StateGraph
-    from langgraph.prebuilt import tools_condition
+    from langgraph.prebuilt import ToolNode, tools_condition
 
     from app.agent.llm import get_model_with_tools
     from app.agent.prompts import SYSTEM_PROMPT
     from app.agent.state import AgentState
-    from app.agent.tools import AuthenticatedToolNode, tools
+    from app.agent.tools import tools
 
     def agent_node(state: AgentState) -> dict:
         model = get_model_with_tools()
@@ -103,7 +104,7 @@ async def _execute_agent(
 
     builder = StateGraph(AgentState)
     builder.add_node("agent", agent_node)
-    builder.add_node("tools", AuthenticatedToolNode(tools))
+    builder.add_node("tools", ToolNode(tools))
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", "__end__": END})
     builder.add_edge("tools", "agent")
@@ -122,23 +123,24 @@ async def _execute_agent(
         "tool_cards": [],
     }
 
-    async for event in graph.astream_events(
-        initial_state,
-        version="v2",
-    ):
+    logger.info("_execute_agent starting with user_id=%r", user_id)
+
+    final_state = None
+    async for event in graph.astream_events(initial_state, version="v2"):
         kind = event.get("event", "")
+        name = event.get("name", "")
 
         if kind == "on_tool_start":
             _publish(channel, {
                 "type": "tool_start",
-                "name": event.get("name", ""),
+                "name": name,
                 "task_id": task_id,
             })
 
         elif kind == "on_tool_end":
             _publish(channel, {
                 "type": "tool_end",
-                "name": event.get("name", ""),
+                "name": name,
                 "task_id": task_id,
             })
             _publish(channel, {
@@ -147,11 +149,15 @@ async def _execute_agent(
                 "task_id": task_id,
             })
 
-    result = await graph.ainvoke(initial_state)
+        elif kind == "on_chain_end" and name == "LangGraph":
+            final_state = event.get("data", {}).get("output", {})
 
-    cards = _extract_tool_cards(result)
+    if not final_state:
+        final_state = await graph.ainvoke(initial_state)
 
-    for msg in reversed(result["messages"]):
+    cards = _extract_tool_cards(final_state)
+
+    for msg in reversed(final_state.get("messages", [])):
         if isinstance(msg, AIMessage) and msg.content:
             if isinstance(msg.content, list):
                 parts = [
