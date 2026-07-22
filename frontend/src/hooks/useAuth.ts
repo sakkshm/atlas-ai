@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMe, login } from "@/lib/api";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
@@ -18,7 +18,7 @@ export function useAuth() {
 
     if (token) {
       localStorage.setItem("token", token);
-      window.history.replaceState({}, "", "/");
+      window.history.replaceState({}, "", "/app");
     }
 
     const stored = localStorage.getItem("token");
