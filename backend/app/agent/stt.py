@@ -19,7 +19,7 @@ def _get_client() -> SarvamAI:
     return _client
 
 
-def _transcribe_sync(audio_bytes: bytes) -> str:
+def _transcribe_sync(audio_bytes: bytes, language_code: str) -> str:
     client = _get_client()
     audio_file = BytesIO(audio_bytes)
     audio_file.name = "audio.webm"
@@ -27,12 +27,12 @@ def _transcribe_sync(audio_bytes: bytes) -> str:
         file=audio_file,
         model="saaras:v3",
         mode="transcribe",
-        language_code="unknown",
+        language_code=language_code,
     )
     return response.transcript
 
 
-async def transcribe(audio_b64: str) -> str:
+async def transcribe(audio_b64: str, language_code: str = "unknown") -> str:
     audio_bytes = base64.b64decode(audio_b64)
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _transcribe_sync, audio_bytes)
+    return await loop.run_in_executor(None, _transcribe_sync, audio_bytes, language_code)

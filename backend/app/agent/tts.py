@@ -16,12 +16,12 @@ def _get_client() -> SarvamAI:
     return _client
 
 
-def _synthesize_sync(text: str) -> bytes:
+def _synthesize_sync(text: str, voice: str) -> bytes:
     client = _get_client()
     response = client.text_to_speech.convert(
         text=text,
         target_language_code="en-IN",
-        speaker="shubh",
+        speaker=voice,
         model="bulbul:v3",
         speech_sample_rate=24000,
         output_audio_codec="wav",
@@ -31,10 +31,10 @@ def _synthesize_sync(text: str) -> bytes:
     return base64.b64decode(response.audios[0])
 
 
-async def synthesize(text: str) -> AsyncGenerator[bytes, None]:
+async def synthesize(text: str, voice: str = "shubh") -> AsyncGenerator[bytes, None]:
     if not text.strip():
         return
 
     loop = asyncio.get_event_loop()
-    audio = await loop.run_in_executor(None, _synthesize_sync, text)
+    audio = await loop.run_in_executor(None, _synthesize_sync, text, voice)
     yield audio
