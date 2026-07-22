@@ -2,12 +2,12 @@ import logging
 
 from langchain_core.messages import SystemMessage
 from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt import tools_condition
 
 from app.agent.llm import get_model_with_tools
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.state import AgentState
-from app.agent.tools import tools
+from app.agent.tools import AuthenticatedToolNode, tools
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def _build_graph():
     builder = StateGraph(AgentState)
 
     builder.add_node("agent", _agent_node)
-    builder.add_node("tools", ToolNode(tools))
+    builder.add_node("tools", AuthenticatedToolNode(tools))
 
     builder.add_edge(START, "agent")
     builder.add_conditional_edges(
@@ -48,7 +48,7 @@ def get_graph():
     return graph
 
 
-async def run_agent(messages: list[dict], thread_id: str) -> str:
+async def run_agent(messages: list[dict], thread_id: str, user_id: str = "") -> str:
     from langchain_core.messages import AIMessage, HumanMessage
 
     lc_messages = [SystemMessage(content=SYSTEM_PROMPT)]
@@ -60,7 +60,7 @@ async def run_agent(messages: list[dict], thread_id: str) -> str:
 
     g = get_graph()
     result = await g.ainvoke(
-        {"messages": lc_messages},
+        {"messages": lc_messages, "user_id": user_id, "tool_cards": []},
         config={"configurable": {"thread_id": thread_id}},
     )
 

@@ -16,6 +16,19 @@ def _publish(channel: str, event: dict):
     _redis.xadd(channel, {"data": json.dumps(event)})
 
 
+def _extract_tool_cards(result: dict) -> list[dict]:
+    cards = []
+    for msg in result.get("messages", []):
+        if hasattr(msg, "content") and isinstance(msg.content, str):
+            try:
+                data = json.loads(msg.content)
+                if isinstance(data, dict) and "card" in data:
+                    cards.append(data["card"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return cards
+
+
 @celery_app.task(
     bind=True,
     name="app.tasks.agent.run_agent",
@@ -28,6 +41,7 @@ def run_agent_task(
     task_id: str,
     session_id: str,
     message_history: list[dict],
+    user_id: str = "",
 ):
     channel = f"stream:{session_id}"
 
@@ -38,9 +52,16 @@ def run_agent_task(
             "task_id": task_id,
         })
 
-        response = asyncio.run(
-            _execute_agent(message_history, channel, task_id)
+        response, cards = asyncio.run(
+            _execute_agent(message_history, channel, task_id, user_id)
         )
+
+        for card in cards:
+            _publish(channel, {
+                "type": "tool_result",
+                "card": card,
+                "task_id": task_id,
+            })
 
         _publish(channel, {
             "type": "done",
@@ -64,15 +85,16 @@ async def _execute_agent(
     message_history: list[dict],
     channel: str,
     task_id: str,
-) -> str:
+    user_id: str = "",
+) -> tuple[str, list[dict]]:
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
     from langgraph.graph import END, START, StateGraph
-    from langgraph.prebuilt import ToolNode, tools_condition
+    from langgraph.prebuilt import tools_condition
 
     from app.agent.llm import get_model_with_tools
     from app.agent.prompts import SYSTEM_PROMPT
     from app.agent.state import AgentState
-    from app.agent.tools import tools
+    from app.agent.tools import AuthenticatedToolNode, tools
 
     def agent_node(state: AgentState) -> dict:
         model = get_model_with_tools()
@@ -81,7 +103,7 @@ async def _execute_agent(
 
     builder = StateGraph(AgentState)
     builder.add_node("agent", agent_node)
-    builder.add_node("tools", ToolNode(tools))
+    builder.add_node("tools", AuthenticatedToolNode(tools))
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", "__end__": END})
     builder.add_edge("tools", "agent")
@@ -94,8 +116,14 @@ async def _execute_agent(
         elif msg["role"] == "assistant":
             lc_messages.append(AIMessage(content=msg["content"]))
 
+    initial_state = {
+        "messages": lc_messages,
+        "user_id": user_id,
+        "tool_cards": [],
+    }
+
     async for event in graph.astream_events(
-        {"messages": lc_messages},
+        initial_state,
         version="v2",
     ):
         kind = event.get("event", "")
@@ -119,9 +147,9 @@ async def _execute_agent(
                 "task_id": task_id,
             })
 
-    result = await graph.ainvoke(
-        {"messages": lc_messages},
-    )
+    result = await graph.ainvoke(initial_state)
+
+    cards = _extract_tool_cards(result)
 
     for msg in reversed(result["messages"]):
         if isinstance(msg, AIMessage) and msg.content:
@@ -130,6 +158,6 @@ async def _execute_agent(
                     b.get("text", "") if isinstance(b, dict) else str(b)
                     for b in msg.content
                 ]
-                return " ".join(parts)
-            return str(msg.content)
-    return ""
+                return " ".join(parts), cards
+            return str(msg.content), cards
+    return "", cards
