@@ -43,7 +43,7 @@ export function VoiceBar({
   const isBusy = disabled || isRecording;
 
   return (
-    <div className="border-t border-zinc-800 bg-zinc-950 p-4">
+    <div className="border-t border-border bg-background p-4">
       <div className="flex items-center gap-2">
         <Button
           variant={isRecording ? "destructive" : "outline"}
@@ -66,7 +66,7 @@ export function VoiceBar({
           onKeyDown={handleKeyDown}
           placeholder={isRecording ? "Listening..." : "Type a message..."}
           disabled={isBusy}
-          className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-zinc-600 transition-colors disabled:opacity-50"
+          className="flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-ring transition-colors disabled:opacity-50"
         />
 
         <Button

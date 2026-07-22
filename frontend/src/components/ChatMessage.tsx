@@ -11,8 +11,8 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
     const alignRight = content === "Transcribing...";
     return (
       <div className={`flex ${alignRight ? "justify-end" : "justify-start"} mb-3`}>
-        <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm text-zinc-400 bg-zinc-900/50 border border-zinc-800/50">
-          <Loader2 className="size-3.5 animate-spin text-zinc-500" />
+        <div className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm text-muted-foreground bg-muted/50 border border-border">
+          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
           <span>{content}</span>
         </div>
       </div>
@@ -26,8 +26,8 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       <div
         className={`max-w-[45%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
           isUser
-            ? "bg-zinc-800 text-zinc-100"
-            : "bg-zinc-900 text-zinc-200 border border-zinc-800"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-foreground border border-border"
         }`}
       >
         {isUser ? (
@@ -39,18 +39,18 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
               ul: ({ children }) => <ul className="list-disc pl-4 mb-2 last:mb-0">{children}</ul>,
               ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 last:mb-0">{children}</ol>,
               li: ({ children }) => <li className="mb-0.5">{children}</li>,
-              strong: ({ children }) => <strong className="font-semibold text-zinc-100">{children}</strong>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
               em: ({ children }) => <em className="italic">{children}</em>,
               code: ({ children, className }) => {
                 const isBlock = className?.includes("language-");
                 return isBlock ? (
-                  <code className="block bg-zinc-800 rounded-md px-3 py-2 my-2 text-xs overflow-x-auto">{children}</code>
+                  <code className="block bg-muted rounded-md px-3 py-2 my-2 text-xs overflow-x-auto">{children}</code>
                 ) : (
-                  <code className="bg-zinc-800 rounded px-1.5 py-0.5 text-xs">{children}</code>
+                  <code className="bg-muted rounded px-1.5 py-0.5 text-xs">{children}</code>
                 );
               },
               a: ({ children, href }) => (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{children}</a>
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 hover:underline">{children}</a>
               ),
             }}
           >
