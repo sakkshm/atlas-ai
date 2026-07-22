@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     VITE_API_URL: str = "http://localhost:8000"
     VITE_WS_URL: str = "ws://localhost:8000"
+    FRONTEND_URL: str = "http://localhost:5173"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

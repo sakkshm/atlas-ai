@@ -46,7 +46,10 @@ async def google_login():
         "access_type": "offline",
         "prompt": "consent",
     }
-    return RedirectResponse(f"{GOOGLE_AUTH_URL}?{urlencode(params)}")
+    return RedirectResponse(
+        f"{GOOGLE_AUTH_URL}?{urlencode(params)}",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
 
 
 @router.get("/google/callback")
@@ -113,7 +116,10 @@ async def google_callback(code: str = Query(...), db: AsyncSession = Depends(get
         db.add(oauth_token)
 
     session_token = create_session_token(user.id)
-    return RedirectResponse(f"http://localhost:5173/?token={session_token}")
+    return RedirectResponse(
+        f"{settings.FRONTEND_URL}/?token={session_token}",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
 
 
 @router.get("/me")
