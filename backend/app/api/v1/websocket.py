@@ -34,6 +34,7 @@ async def _drain_stream(
     deadline = asyncio.get_event_loop().time() + timeout
     response_text = None
     cards: list[dict] = []
+    is_error = False
 
     while True:
         remaining = deadline - asyncio.get_event_loop().time()
@@ -71,12 +72,13 @@ async def _drain_stream(
                     response_text = event.get("response", "")
                     break
                 elif event["type"] == "error":
+                    is_error = True
                     break
 
-            if response_text is not None or event["type"] == "error":
+            if response_text is not None or is_error:
                 break
 
-        if response_text is not None or event["type"] == "error":
+        if response_text is not None or is_error:
             break
 
     return response_text, last_id, cards

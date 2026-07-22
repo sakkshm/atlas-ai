@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Layout } from "@/components/layout/Layout";
 import { ChatPage } from "@/pages/ChatPage";
@@ -73,6 +74,7 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-center" richColors closeButton />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/app/*" element={<AppRoutes />} />

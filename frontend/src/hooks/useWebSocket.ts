@@ -13,6 +13,7 @@ export interface WSMessage {
 interface UseWebSocketOptions {
   onBinaryChunk?: (chunk: ArrayBuffer) => void;
   onMessage?: (msg: WSMessage) => void;
+  onAuthExpired?: () => void;
 }
 
 export function useWebSocket(
@@ -79,10 +80,16 @@ export function useWebSocket(
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (myId !== connIdRef.current) return;
       setStatus("disconnected");
       wsRef.current = null;
+
+      if (event.code === 4003) {
+        optionsRef.current.onAuthExpired?.();
+        return;
+      }
+
       const delay = Math.min(1000 * 2 ** reconnectAttempts.current, 30000);
       reconnectAttempts.current += 1;
       reconnectTimeout.current = setTimeout(connect, delay);

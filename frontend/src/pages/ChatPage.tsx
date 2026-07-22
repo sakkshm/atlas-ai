@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { toast } from "sonner";
+import { useWebSocket, type WSStatus } from "@/hooks/useWebSocket";
 import { useTTS, unlockAudio } from "@/hooks/useTTS";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ToolCard } from "@/components/ToolCard";
@@ -41,6 +42,7 @@ export function ChatPage({ token }: ChatPageProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [authExpired, setAuthExpired] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasCreatedSession = useRef(false);
   const newSessionId = useRef(crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)).current;
@@ -99,9 +101,21 @@ export function ChatPage({ token }: ChatPageProps) {
           });
         } else if (msg.type === "tts_end") {
           t.flush();
-          setMessages((prev) => prev.filter((m) => m.role !== "status"));
-          setIsProcessing(false);
         }
+      },
+      onAuthExpired: () => {
+        setAuthExpired(true);
+        toast.error("Session expired", {
+          description: "Please sign in again.",
+          action: {
+            label: "Sign in",
+            onClick: () => {
+              localStorage.removeItem("token");
+              window.location.href = "/api/v1/auth/google/login";
+            },
+          },
+          duration: Infinity,
+        });
       },
     }
   );
@@ -114,6 +128,14 @@ export function ChatPage({ token }: ChatPageProps) {
     if (status === "connected") {
       setIsProcessing(false);
     }
+  }, [status]);
+
+  const prevStatus = useRef<WSStatus>(status);
+  useEffect(() => {
+    if (prevStatus.current === "disconnected" && status === "connected") {
+      toast.success("Reconnected");
+    }
+    prevStatus.current = status;
   }, [status]);
 
   useEffect(() => {
@@ -167,6 +189,7 @@ export function ChatPage({ token }: ChatPageProps) {
         next.push({ role: "assistant", content: lastMessage.text! });
         return next;
       });
+      setIsProcessing(false);
     } else if (lastMessage.type === "error") {
       setMessages((prev) => {
         const next = prev.filter((m) => m.role !== "status");
@@ -174,6 +197,11 @@ export function ChatPage({ token }: ChatPageProps) {
         return next;
       });
       setIsProcessing(false);
+
+      const msg = lastMessage.message || "";
+      if (msg.includes("TTS failed") || msg.includes("transcription") || msg.includes("Calendar") || msg.includes("Gmail") || msg.includes("Tasks")) {
+        toast.error("Tool error", { description: msg });
+      }
     }
   }, [lastMessage]);
 
@@ -220,6 +248,15 @@ export function ChatPage({ token }: ChatPageProps) {
 
   return (
     <>
+      {status === "disconnected" && !authExpired && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+            <p className="text-sm text-muted-foreground">Connection lost — reconnecting...</p>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hidden max-w-3xl mx-auto w-full">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">

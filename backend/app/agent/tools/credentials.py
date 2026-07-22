@@ -38,8 +38,8 @@ async def get_google_credentials(
                 token=access_token,
                 refresh_token=refresh_token,
                 token_uri="https://oauth2.googleapis.com/token",
-                client_id=None,
-                client_secret=None,
+                client_id=settings.GOOGLE_CLIENT_ID,
+                client_secret=settings.GOOGLE_CLIENT_SECRET,
                 scopes=oauth_token.scopes.split() if oauth_token.scopes else None,
             )
 
