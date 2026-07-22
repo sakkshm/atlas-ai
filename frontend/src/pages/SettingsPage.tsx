@@ -7,10 +7,10 @@ import type { User } from "@/hooks/useAuth";
 
 const TTS_VOICES = [
   { value: "shubh", label: "Shubh (Male)" },
-  { value: "meera", label: "Meera (Female)" },
-  { value: "arvind", label: "Arvind (Male)" },
-  { value: "vallari", label: "Vallari (Female)" },
-  { value: "amolika", label: "Amolika (Female)" },
+  { value: "kavya", label: "Kavya (Female)" },
+  { value: "priya", label: "Priya (Female)" },
+  { value: "rahul", label: "Rahul (Male)" },
+  { value: "aditya", label: "Aditya (Male)" },
 ];
 
 const STT_LANGUAGES = [

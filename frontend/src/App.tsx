@@ -74,7 +74,7 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <Toaster position="top-center" richColors closeButton />
+      <Toaster position="bottom-right" richColors closeButton theme="dark" />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/app/*" element={<AppRoutes />} />
