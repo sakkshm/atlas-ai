@@ -70,7 +70,7 @@ A voice-first AI assistant for Google Workspace. You speak or type a command, an
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-username/atlas-ai.git
+git clone https://github.com/sakkshm/atlas-ai.git
 cd atlas-ai
 cp .env.example .env
 ```
