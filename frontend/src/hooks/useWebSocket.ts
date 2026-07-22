@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type WSStatus = "connecting" | "connected" | "disconnected";
 
 export interface WSMessage {
-  type: "status" | "response" | "tts_start" | "tts_end" | "error" | "transcription" | "tool_start" | "tool_end" | "tool_result";
+  type: "status" | "response" | "tts_start" | "tts_end" | "error" | "transcription" | "tool_start" | "tool_end" | "tool_result" | "hitl_request";
   message?: string;
   text?: string;
   name?: string;

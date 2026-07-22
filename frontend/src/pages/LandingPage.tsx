@@ -58,7 +58,7 @@ export function LandingPage() {
           <span className="font-heading text-lg tracking-[-0.02em]">Atlas</span>
           <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
           <a
-            href="https://github.com"
+            href="https://github.com/sakkshm/atlas-ai"
             target="_blank"
             rel="noopener noreferrer"
             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -85,7 +85,7 @@ export function LandingPage() {
               Your AI assistant<br />for Google workspace
             </h1>
             <p className="text-muted-foreground text-lg max-w-md mx-auto leading-relaxed">
-              Manage calendar, email, tasks, and maps — with your voice.
+              Manage calendar, email, tasks, and maps with your voice.
             </p>
             <div className="flex items-center justify-center gap-3 pt-2">
               {isAuthenticated ? (
@@ -127,10 +127,6 @@ export function LandingPage() {
           </div>
         </section>
       </main>
-
-      <footer className="relative z-10 border-t border-white/[0.08] px-4 py-6 text-center text-xs text-muted-foreground">
-        Atlas AI
-      </footer>
     </div>
   );
 }

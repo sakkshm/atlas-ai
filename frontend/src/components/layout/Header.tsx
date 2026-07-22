@@ -11,7 +11,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
       <Button variant="ghost" size="icon-sm" onClick={onToggleSidebar}>
         <Menu className="size-4" />
       </Button>
-      <h1 className="text-sm font-semibold ml-2 tracking-tight">Atlas AI</h1>
+      <h1 className="text-sm font-semibold ml-2 tracking-tight">Atlas</h1>
     </header>
   );
 }

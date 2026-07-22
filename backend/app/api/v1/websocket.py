@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 
 import redis.asyncio as aioredis
@@ -21,6 +22,11 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 sessions: dict[str, list[dict]] = {}
+
+CONFIRMATION_PATTERN = re.compile(
+    r"^\s*(yes|yeah|yep|yup|ok|okay|confirm|confirmed|go ahead|proceed|do it|please|sure|absolutely|definitely)\s*[.!]*\s*$",
+    re.IGNORECASE,
+)
 
 
 async def _drain_stream(
@@ -223,12 +229,17 @@ async def websocket_endpoint(
             if response_text:
                 message_history.append({"role": "assistant", "content": response_text})
 
+                is_confirmation = bool(
+                    re.search(r"\b(are you sure|confirm|should i|proceed|go ahead)\b", response_text, re.IGNORECASE)
+                    and ("?" in response_text)
+                )
+
                 async with async_session_factory() as db:
                     for card in cards:
                         await _persist_message(db, session_id, "card", json.dumps(card))
                     await _persist_message(db, session_id, "assistant", response_text)
 
-                if tts_enabled:
+                if tts_enabled and not is_confirmation:
                     tts_chunks = []
                     try:
                         async for audio_chunk in synthesize(response_text, voice=tts_voice):
@@ -245,9 +256,14 @@ async def websocket_endpoint(
                             await websocket.send_bytes(audio_chunk)
                         await websocket.send_json({"type": "tts_end"})
 
-                await websocket.send_json(
-                    {"type": "response", "text": response_text}
-                )
+                if is_confirmation:
+                    await websocket.send_json(
+                        {"type": "hitl_request", "text": response_text}
+                    )
+                else:
+                    await websocket.send_json(
+                        {"type": "response", "text": response_text}
+                    )
 
     except WebSocketDisconnect:
         pass

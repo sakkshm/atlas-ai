@@ -1,4 +1,4 @@
-# Atlas AI
+# Atlas
 
 Voice-enabled AI assistant that orchestrates actions across Google Workspace services. Speak or type a command and Atlas chains together actions across Calendar, Tasks, Gmail, Contacts, and Maps — streaming each step back in real time.
 
@@ -8,7 +8,7 @@ Voice-enabled AI assistant that orchestrates actions across Google Workspace ser
                       +--------------------------+
                       |    React / Vite Frontend |
                       |  Audio Recorder / WS /   |
-                      |  Living Aura Visualizer  |
+                      |  Glass UI / Dark Theme   |
                       +------------+-------------+
                                    |
                     REST / OAuth   |  WebSocket Stream
@@ -31,10 +31,10 @@ Voice-enabled AI assistant that orchestrates actions across Google Workspace ser
                       |   Celery Worker           |
                       |   LangGraph Agent         |
                       |                           |
-                       |   1. faster-whisper STT    |
-                       |   2. Gemini LLM Reasoning   |
-                       |   3. Google API Tools      |
-                       |   4. edge-tts streaming     |
+                      |   1. SarvamAI STT API     |
+                      |   2. Gemini LLM Reasoning  |
+                      |   3. Google API Tools     |
+                      |   4. SarvamAI TTS API     |
                       +--------------------------+
 ```
 
@@ -50,10 +50,10 @@ Voice-enabled AI assistant that orchestrates actions across Google Workspace ser
 | Auth | Google OAuth2, JWT sessions |
 | Encryption | AES-256 (Fernet) |
 | LLM | Gemini 2.0 Flash (free tier) |
-| STT | faster-whisper (local, free, offline) |
-| TTS | edge-tts (free, no API key) |
-| Frontend | React, Vite, TypeScript, Tailwind, Shadcn UI |
-| Animations | Framer Motion, Web Audio API |
+| STT | SarvamAI API (bulbul:v3) |
+| TTS | SarvamAI API (bulbul:v3) |
+| Frontend | React, Vite, TypeScript, Tailwind |
+| Typography | Instrument Serif, Inter Variable |
 | Infra | Docker Compose |
 
 ## Prerequisites
@@ -63,6 +63,7 @@ Voice-enabled AI assistant that orchestrates actions across Google Workspace ser
 - Docker & Docker Compose
 - Google Cloud Console project with OAuth2 credentials
 - Gemini API key (free tier: [aistudio.google.com](https://aistudio.google.com/apikey))
+- SarvamAI API key ([sarvam.ai](https://www.sarvam.ai/))
 
 ## Setup
 
@@ -95,11 +96,9 @@ GOOGLE_MAPS_API_KEY=xxx
 GEMINI_API_KEY=xxx
 LLM_MODEL=gemini-2.0-flash
 
-# Whisper STT (local, no API key)
-WHISPER_MODEL_SIZE=base    # tiny, base, small, medium
-
-# Edge TTS (free, no API key)
-TTS_VOICE=en-US-AriaNeural
+# SarvamAI (STT + TTS)
+SARVAM_API_KEY=xxx
+TTS_VOICE=shubh    # shubh, kavya, priya, rahul, aditya
 
 # Encryption key (generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 FERNET_KEY=xxx
@@ -180,13 +179,13 @@ This starts PostgreSQL, Redis, the FastAPI backend, and the Celery worker. The f
 1. **Authenticate** — User logs in via Google OAuth2. Access and refresh tokens are encrypted with AES-256 and stored in PostgreSQL.
 2. **Send Command** — User speaks (push-to-talk) or types a command in the UI.
 3. **Process** — The command is sent over WebSocket to FastAPI, which enqueues a Celery task. The LangGraph agent:
-   - Transcribes audio via `faster-whisper` (local, no API key)
+   - Transcribes audio via SarvamAI STT API
    - Reasons over the user's intent with Gemini 2.0 Flash
    - Resolves entities (e.g., "John" → Contacts API → email address)
    - Executes Google API tools (Calendar, Tasks, Gmail, Maps)
-   - For destructive actions (delete, update), asks for confirmation before proceeding
+   - For destructive actions (delete, send email), asks for confirmation before proceeding (HITL)
 4. **Stream** — Each step is published to Redis Pub/Sub and streamed back to the frontend in real time.
-5. **Respond** — The final answer is rendered as text + structured action cards and read aloud via `edge-tts` (streamed as MP3 over WebSocket).
+5. **Respond** — The final answer is rendered as text + structured action cards and read aloud via SarvamAI TTS (streamed as audio over WebSocket).
 
 ## Project Structure
 
@@ -206,11 +205,11 @@ atlas-ai/
 └── frontend/
     └── src/
         ├── components/
-        │   ├── aura/            # Living Aura voice visualizer
-        │   ├── cards/           # Structured action cards
-        │   ├── chat/            # Chat UI + streaming status
-        │   └── layout/          # Sidebar, header
+        │   ├── cards/           # Individual action cards
+        │   ├── layout/          # Sidebar, header, ambient blobs
+        │   └── ui/              # Shared UI primitives
         ├── hooks/               # Audio, WebSocket, TTS hooks
+        ├── pages/               # Landing, Chat, Settings
         └── lib/                 # API client, utilities
 ```
 

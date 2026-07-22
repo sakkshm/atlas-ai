@@ -22,7 +22,7 @@ function AppRoutes() {
     return (
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-medium tracking-tight">Atlas AI</h1>
+          <h1 className="text-2xl font-medium tracking-tight">Atlas</h1>
           <p className="text-muted-foreground text-sm">Please sign in to continue</p>
           <LoginButton />
         </div>

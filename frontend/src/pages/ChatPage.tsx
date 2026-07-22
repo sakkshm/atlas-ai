@@ -44,6 +44,7 @@ export function ChatPage({ token }: ChatPageProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [authExpired, setAuthExpired] = useState(false);
+  const [hitlPending, setHitlPending] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasCreatedSession = useRef(false);
   const newSessionId = useRef(crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)).current;
@@ -102,6 +103,12 @@ export function ChatPage({ token }: ChatPageProps) {
           });
         } else if (msg.type === "tts_end") {
           t.flush();
+        } else if (msg.type === "hitl_request") {
+          setHitlPending(msg.text ?? null);
+          setMessages((prev) => {
+            const next = prev.filter((m) => m.role !== "status");
+            return next;
+          });
         }
       },
       onAuthExpired: () => {
@@ -185,6 +192,7 @@ export function ChatPage({ token }: ChatPageProps) {
         return next;
       });
     } else if (lastMessage.type === "response" && lastMessage.text) {
+      setHitlPending(null);
       setMessages((prev) => {
         const next = prev.filter((m) => m.role !== "status");
         next.push({ role: "assistant", content: lastMessage.text! });
@@ -214,6 +222,7 @@ export function ChatPage({ token }: ChatPageProps) {
         { role: "user", content: text },
       ]);
       setIsProcessing(true);
+      setHitlPending(null);
 
       if (!hasCreatedSession.current) {
         hasCreatedSession.current = true;
@@ -228,6 +237,14 @@ export function ChatPage({ token }: ChatPageProps) {
       send({ type: "text", data: text });
     },
     [send, wsSessionId, token]
+  );
+
+  const handleHitlResponse = useCallback(
+    (confirmed: boolean) => {
+      const text = confirmed ? "yes" : "no, cancel";
+      handleSendText(text);
+    },
+    [handleSendText]
   );
 
   const handleSendAudio = useCallback(
@@ -284,11 +301,33 @@ export function ChatPage({ token }: ChatPageProps) {
         <div ref={messagesEndRef} />
       </main>
 
+      {hitlPending && (
+        <div className="max-w-3xl mx-auto w-full px-4 pb-2 fade-in">
+          <div className="glass rounded-2xl px-5 py-4 border border-white/[0.08]">
+            <p className="text-[13px] text-muted-foreground mb-3 leading-relaxed">{hitlPending}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleHitlResponse(true)}
+                className="flex-1 rounded-xl bg-emerald-500/20 text-emerald-400 text-sm font-medium py-2.5 hover:bg-emerald-500/30 transition-colors"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => handleHitlResponse(false)}
+                className="flex-1 rounded-xl bg-white/[0.06] text-muted-foreground text-sm font-medium py-2.5 hover:bg-white/[0.1] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-3xl mx-auto w-full">
         <VoiceBar
           onSendText={handleSendText}
           onSendAudio={handleSendAudio}
-          disabled={status !== "connected" || isProcessing}
+          disabled={status !== "connected" || isProcessing || !!hitlPending}
         />
       </div>
     </>

@@ -41,7 +41,7 @@ export function SettingsPage({ token, user, onLogout }: SettingsPageProps) {
     <div className="flex-1 overflow-y-auto scrollbar-hidden">
       <div className="max-w-xl mx-auto px-4 py-6 space-y-8">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon-sm" onClick={() => navigate("/")}>
+          <Button variant="ghost" size="icon-sm" onClick={() => navigate("/app")}>
             <ArrowLeft className="size-4" />
           </Button>
           <h1 className="text-lg font-semibold tracking-tight">Settings</h1>

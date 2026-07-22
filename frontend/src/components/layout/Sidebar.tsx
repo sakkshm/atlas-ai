@@ -56,7 +56,7 @@ export function Sidebar({ token, user, onLogout, open, onClose }: SidebarProps) 
         `}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] shrink-0">
-          <h1 className="font-heading text-lg tracking-[0.01em]">Atlas AI</h1>
+          <h1 className="font-heading text-lg tracking-[0.01em]">Atlas</h1>
           <Button
             variant="ghost"
             size="icon-sm"
