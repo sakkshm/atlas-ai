@@ -5,7 +5,8 @@ from typing import Annotated
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+
+from app.agent.tools.errors import handle_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +66,8 @@ async def list_tasks(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Tasks API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to list tasks")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to list tasks")
 
 
 @tool
@@ -116,12 +113,8 @@ async def create_task(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Tasks API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to create task")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to create task")
 
 
 @tool
@@ -157,12 +150,8 @@ async def complete_task(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Tasks API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to complete task")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to complete task")
 
 
 @tool
@@ -188,9 +177,5 @@ async def delete_task(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Tasks API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to delete task")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to delete task")

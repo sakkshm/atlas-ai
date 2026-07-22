@@ -6,7 +6,8 @@ from typing import Annotated
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+
+from app.agent.tools.errors import handle_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +75,8 @@ async def list_calendar_events(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Calendar API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to list calendar events")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to list calendar events")
 
 
 @tool
@@ -138,12 +135,8 @@ async def create_calendar_event(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Calendar API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to create calendar event")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to create calendar event")
 
 
 @tool
@@ -198,12 +191,8 @@ async def update_calendar_event(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Calendar API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to update calendar event")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to update calendar event")
 
 
 @tool
@@ -233,9 +222,5 @@ async def delete_calendar_event(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Calendar API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to delete calendar event")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to delete calendar event")

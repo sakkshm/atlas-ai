@@ -8,6 +8,8 @@ export interface WSMessage {
   text?: string;
   name?: string;
   card?: any;
+  code?: string;
+  retry_after?: number;
 }
 
 interface UseWebSocketOptions {
@@ -15,6 +17,8 @@ interface UseWebSocketOptions {
   onMessage?: (msg: WSMessage) => void;
   onAuthExpired?: () => void;
 }
+
+const MAX_RECONNECT_ATTEMPTS = 10;
 
 export function useWebSocket(
   sessionId: string,
@@ -66,13 +70,10 @@ export function useWebSocket(
           // ignore malformed JSON
         }
       } else {
-        // Binary data — ArrayBuffer or Blob
         const data = event.data;
         if (data instanceof ArrayBuffer) {
-          console.log("[WS] binary (AB):", data.byteLength);
           optionsRef.current.onBinaryChunk?.(data);
         } else if (data instanceof Blob) {
-          console.log("[WS] binary (Blob):", data.size);
           data.arrayBuffer().then((buf) => {
             optionsRef.current.onBinaryChunk?.(buf);
           });
@@ -87,6 +88,10 @@ export function useWebSocket(
 
       if (event.code === 4003) {
         optionsRef.current.onAuthExpired?.();
+        return;
+      }
+
+      if (reconnectAttempts.current >= MAX_RECONNECT_ATTEMPTS) {
         return;
       }
 

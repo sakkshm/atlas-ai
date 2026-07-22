@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from datetime import datetime, timezone
 
 from google.auth.transport.requests import Request
@@ -5,9 +7,14 @@ from google.oauth2.credentials import Credentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.agent.tools.errors import OAuthExpiredError
 from app.core.config import settings
 from app.core.security import decrypt_token, encrypt_token
 from app.models.oauth import OAuthToken
+
+logger = logging.getLogger(__name__)
+
+MAX_REFRESH_RETRIES = 2
 
 
 async def get_google_credentials(
@@ -25,7 +32,9 @@ async def get_google_credentials(
             oauth_token = result.scalar_one_or_none()
 
             if not oauth_token:
-                raise ValueError(f"No Google OAuth token found for user {user_id}")
+                raise OAuthExpiredError(
+                    "No Google account connected. Please sign in with Google."
+                )
 
             access_token = decrypt_token(oauth_token.access_token)
             refresh_token = (
@@ -44,13 +53,35 @@ async def get_google_credentials(
             )
 
             if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                last_error = None
+                for attempt in range(MAX_REFRESH_RETRIES):
+                    try:
+                        creds.refresh(Request())
+                        break
+                    except Exception as e:
+                        last_error = e
+                        logger.warning(
+                            "Token refresh attempt %d/%d failed: %s",
+                            attempt + 1,
+                            MAX_REFRESH_RETRIES,
+                            e,
+                        )
+                        if attempt < MAX_REFRESH_RETRIES - 1:
+                            await asyncio.sleep(1)
+                else:
+                    if last_error:
+                        msg = str(last_error).lower()
+                        if "token_expired" in msg or "invalid_grant" in msg or "revoked" in msg:
+                            raise OAuthExpiredError(
+                                "Google access has been revoked. Please sign in again."
+                            )
+                        raise OAuthExpiredError(
+                            "Failed to refresh Google token. Please sign in again."
+                        )
+
                 oauth_token.access_token = encrypt_token(creds.token)
-                oauth_token.expires_at = datetime.now(timezone.utc) + (
-                    creds.expiry - datetime.now(timezone.utc)
-                    if creds.expiry
-                    else None
-                )
+                if creds.expiry:
+                    oauth_token.expires_at = creds.expiry
                 await session.commit()
 
             return creds

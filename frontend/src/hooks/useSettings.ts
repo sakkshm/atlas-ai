@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { getUserSettings, updateUserSettings, type UserSettings } from "@/lib/api";
 
 const CACHE_KEY = "user_settings";
@@ -32,6 +33,7 @@ export function useSettings(token: string | null) {
   const update = useCallback(
     async (patch: Partial<UserSettings>) => {
       if (!token) return;
+      const previous = settings;
       setSettings((prev) => {
         const next = { ...prev, ...patch };
         localStorage.setItem(CACHE_KEY, JSON.stringify(next));
@@ -41,9 +43,13 @@ export function useSettings(token: string | null) {
         const updated = await updateUserSettings(token, patch);
         setSettings(updated);
         localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
-      } catch {}
+      } catch {
+        setSettings(previous);
+        localStorage.setItem(CACHE_KEY, JSON.stringify(previous));
+        toast.error("Failed to save settings");
+      }
     },
-    [token]
+    [token, settings]
   );
 
   return { settings, loading, update };

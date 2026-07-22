@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { listSessions, createSession, deleteSession, type Session } from "@/lib/api";
 
 export function useSessions(token: string | null) {
@@ -11,7 +12,10 @@ export function useSessions(token: string | null) {
     try {
       const data = await listSessions(token);
       setSessions(data);
-    } catch {
+    } catch (e: any) {
+      if (e?.name !== "AuthExpiredError") {
+        toast.error("Failed to load conversations");
+      }
     } finally {
       setLoading(false);
     }
@@ -30,9 +34,14 @@ export function useSessions(token: string | null) {
   const addSession = useCallback(
     async (title?: string) => {
       if (!token) return null;
-      const session = await createSession(token, title);
-      setSessions((prev) => [session, ...prev]);
-      return session;
+      try {
+        const session = await createSession(token, title);
+        setSessions((prev) => [session, ...prev]);
+        return session;
+      } catch (e: any) {
+        toast.error("Failed to create conversation");
+        return null;
+      }
     },
     [token]
   );
@@ -40,8 +49,12 @@ export function useSessions(token: string | null) {
   const removeSession = useCallback(
     async (sessionId: string) => {
       if (!token) return;
-      await deleteSession(token, sessionId);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      try {
+        await deleteSession(token, sessionId);
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      } catch (e: any) {
+        toast.error("Failed to delete conversation");
+      }
     },
     [token]
   );

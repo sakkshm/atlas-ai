@@ -7,7 +7,8 @@ from typing import Annotated
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+
+from app.agent.tools.errors import handle_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +61,8 @@ async def draft_email(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Gmail API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to create draft")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to create email draft")
 
 
 @tool
@@ -103,12 +100,8 @@ async def send_email(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Gmail API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to send email")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to send email")
 
 
 def _parse_headers(headers: list[dict], names: list[str]) -> dict[str, str]:
@@ -201,12 +194,8 @@ async def list_emails(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Gmail API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to list emails")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to list emails")
 
 
 @tool
@@ -253,9 +242,5 @@ async def read_email(
             },
         })
 
-    except HttpError as e:
-        logger.exception("Gmail API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to read email")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to read email")

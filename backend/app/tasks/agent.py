@@ -4,12 +4,15 @@ import logging
 
 import redis
 
+from app.agent.tools.errors import OAuthExpiredError
 from app.core.celery import celery_app
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 _redis = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+NON_RETRYABLE_ERRORS = (OAuthExpiredError, PermissionError, ValueError)
 
 
 def _publish(channel: str, event: dict):
@@ -27,6 +30,30 @@ def _extract_tool_cards(result: dict) -> list[dict]:
             except (json.JSONDecodeError, TypeError):
                 pass
     return cards
+
+
+def _extract_user_message(error: Exception) -> str:
+    if isinstance(error, OAuthExpiredError):
+        return error.message
+
+    msg = str(error).lower()
+
+    if "401" in msg or "unauthorized" in msg or "token" in msg:
+        return "Google session expired. Please reconnect your Google account."
+    if "403" in msg or "forbidden" in msg or "permission" in msg:
+        return "Permission denied. Check that Atlas has access to this Google service."
+    if "404" in msg or "not found" in msg:
+        return "The item was not found. It may have been deleted."
+    if "429" in msg or "rate limit" in msg or "quota" in msg:
+        return "Too many requests to Google APIs. Please try again in a moment."
+    if "500" in msg or "502" in msg or "503" in msg:
+        return "Google service is temporarily unavailable. Please try again later."
+    if "timeout" in msg or "timed out" in msg:
+        return "The request timed out. Please try again."
+    if "connection" in msg or "connect" in msg:
+        return "Network error. Please check your connection and try again."
+
+    return "Something went wrong. Please try again."
 
 
 @celery_app.task(
@@ -72,12 +99,23 @@ def run_agent_task(
 
         return {"task_id": task_id, "response": response}
 
+    except NON_RETRYABLE_ERRORS as exc:
+        logger.warning("Non-retryable agent error: %s", exc)
+        _publish(channel, {
+            "type": "error",
+            "task_id": task_id,
+            "message": _extract_user_message(exc),
+            "code": "auth_expired" if isinstance(exc, OAuthExpiredError) else "tool_error",
+        })
+        return {"task_id": task_id, "error": str(exc)}
+
     except Exception as exc:
         logger.exception("Agent task failed")
         _publish(channel, {
             "type": "error",
             "task_id": task_id,
-            "message": str(exc),
+            "message": _extract_user_message(exc),
+            "code": "agent_error",
         })
         raise self.retry(exc=exc)
 

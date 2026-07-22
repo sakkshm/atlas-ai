@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import logging
 import re
@@ -11,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.stt import transcribe
 from app.agent.tts import synthesize
+from app.agent.tools.errors import OAuthExpiredError
 from app.core.config import settings
 from app.core.database import async_session_factory
+from app.core.ratelimit import ws_rate_limiter
 from app.core.security import verify_session_token
 from app.models.session import Message, Session
 from app.models.settings import UserSettings
@@ -22,6 +25,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 sessions: dict[str, list[dict]] = {}
+active_tasks: dict[str, str] = {}
+
+MAX_TEXT_LENGTH = 5000
+MAX_AUDIO_SIZE_MB = 10
 
 CONFIRMATION_PATTERN = re.compile(
     r"^\s*(yes|yeah|yep|yup|ok|okay|confirm|confirmed|go ahead|proceed|do it|please|sure|absolutely|definitely)\s*[.!]*\s*$",
@@ -45,7 +52,11 @@ async def _drain_stream(
     while True:
         remaining = deadline - asyncio.get_event_loop().time()
         if remaining <= 0:
-            await websocket.send_json({"type": "error", "message": "Agent timed out"})
+            await websocket.send_json({
+                "type": "error",
+                "message": "Agent timed out. Please try again.",
+                "code": "agent_timeout",
+            })
             break
 
         try:
@@ -56,6 +67,15 @@ async def _drain_stream(
             )
         except asyncio.TimeoutError:
             continue
+        except Exception as e:
+            logger.exception("Redis stream read error")
+            await websocket.send_json({
+                "type": "error",
+                "message": "Connection error. Please try again.",
+                "code": "stream_error",
+            })
+            is_error = True
+            break
 
         if not entries:
             continue
@@ -64,7 +84,10 @@ async def _drain_stream(
             for entry_id, fields in messages:
                 last_id = entry_id
                 raw = fields.get("data") or fields.get(b"data")
-                event = json.loads(raw)
+                try:
+                    event = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    continue
 
                 if event.get("task_id") != task_id:
                     continue
@@ -160,24 +183,80 @@ async def websocket_endpoint(
             try:
                 payload = json.loads(data["text"])
             except json.JSONDecodeError:
-                await websocket.send_json(
-                    {"type": "error", "message": "Invalid JSON"}
-                )
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Invalid message format.",
+                    "code": "invalid_json",
+                })
                 continue
 
             msg_type = payload.get("type")
 
+            rate_limited, retry_after = ws_rate_limiter.check(session_id)
+            if rate_limited:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Too many requests. Please wait {retry_after} seconds.",
+                    "code": "rate_limited",
+                    "retry_after": retry_after,
+                })
+                continue
+
+            if active_tasks.get(session_id):
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Please wait for the current request to finish.",
+                    "code": "busy",
+                })
+                continue
+
             if msg_type == "audio":
+                audio_data = payload.get("data", "")
+                if not audio_data:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "No audio data received.",
+                        "code": "invalid_input",
+                    })
+                    continue
+
+                try:
+                    audio_bytes = base64.b64decode(audio_data)
+                    size_mb = len(audio_bytes) / (1024 * 1024)
+                    if size_mb > MAX_AUDIO_SIZE_MB:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": f"Audio is too large ({size_mb:.1f}MB). Maximum is {MAX_AUDIO_SIZE_MB}MB.",
+                            "code": "invalid_input",
+                        })
+                        continue
+                except Exception:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Invalid audio data.",
+                        "code": "invalid_input",
+                    })
+                    continue
+
                 try:
                     await websocket.send_json(
                         {"type": "status", "message": "Transcribing..."}
                     )
-                    text = await transcribe(payload["data"], language_code=stt_language)
+                    text = await transcribe(audio_data, language_code=stt_language)
+                except OAuthExpiredError as e:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": e.message,
+                        "code": "auth_expired",
+                    })
+                    continue
                 except Exception as e:
                     logger.exception("STT failed")
-                    await websocket.send_json(
-                        {"type": "error", "message": f"Transcription failed: {e}"}
-                    )
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Could not transcribe audio. Please try again or type your message.",
+                        "code": "stt_error",
+                    })
                     continue
 
                 await websocket.send_json(
@@ -190,6 +269,13 @@ async def websocket_endpoint(
                 user_text = payload.get("data", "")
                 if not user_text.strip():
                     continue
+                if len(user_text) > MAX_TEXT_LENGTH:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Message too long ({len(user_text)} chars). Maximum is {MAX_TEXT_LENGTH}.",
+                        "code": "invalid_input",
+                    })
+                    continue
 
             else:
                 continue
@@ -197,34 +283,53 @@ async def websocket_endpoint(
             message_history.append({"role": "user", "content": user_text})
 
             async with async_session_factory() as db:
-                await _persist_message(db, session_id, "user", user_text)
+                try:
+                    await _persist_message(db, session_id, "user", user_text)
+                except Exception as e:
+                    logger.exception("Failed to persist user message: %s", e)
 
                 if first_user_message:
                     title = user_text[:50] + ("..." if len(user_text) > 50 else "")
-                    result = await db.execute(
-                        select(Session).where(Session.id == session_id)
-                    )
-                    sess = result.scalar_one_or_none()
-                    if sess and sess.title == "New chat":
-                        await _update_session_title(db, sess, title)
+                    try:
+                        result = await db.execute(
+                            select(Session).where(Session.id == session_id)
+                        )
+                        sess = result.scalar_one_or_none()
+                        if sess and sess.title == "New chat":
+                            await _update_session_title(db, sess, title)
+                    except Exception as e:
+                        logger.exception("Failed to update session title: %s", e)
                     first_user_message = False
 
             task_id = str(uuid.uuid4())
+            active_tasks[session_id] = task_id
 
-            run_agent_task.apply_async(
-                kwargs={
-                    "task_id": task_id,
-                    "session_id": session_id,
-                    "message_history": list(message_history),
-                    "user_id": user_id,
-                },
-                task_id=task_id,
-                queue="agent",
-            )
+            try:
+                run_agent_task.apply_async(
+                    kwargs={
+                        "task_id": task_id,
+                        "session_id": session_id,
+                        "message_history": list(message_history),
+                        "user_id": user_id,
+                    },
+                    task_id=task_id,
+                    queue="agent",
+                )
+            except Exception as e:
+                logger.exception("Failed to enqueue agent task")
+                active_tasks.pop(session_id, None)
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Failed to process your request. Please try again.",
+                    "code": "task_error",
+                })
+                continue
 
             response_text, last_id, cards = await _drain_stream(
                 redis_client, stream_key, websocket, task_id, last_id
             )
+
+            active_tasks.pop(session_id, None)
 
             if response_text:
                 message_history.append({"role": "assistant", "content": response_text})
@@ -235,20 +340,31 @@ async def websocket_endpoint(
                 )
 
                 async with async_session_factory() as db:
-                    for card in cards:
-                        await _persist_message(db, session_id, "card", json.dumps(card))
-                    await _persist_message(db, session_id, "assistant", response_text)
+                    try:
+                        for card in cards:
+                            await _persist_message(db, session_id, "card", json.dumps(card))
+                        await _persist_message(db, session_id, "assistant", response_text)
+                    except Exception as e:
+                        logger.exception("Failed to persist assistant response: %s", e)
 
                 if tts_enabled and not is_confirmation:
                     tts_chunks = []
                     try:
                         async for audio_chunk in synthesize(response_text, voice=tts_voice):
                             tts_chunks.append(audio_chunk)
+                    except OAuthExpiredError as e:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": e.message,
+                            "code": "auth_expired",
+                        })
                     except Exception as e:
                         logger.exception("TTS failed")
-                        await websocket.send_json(
-                            {"type": "error", "message": f"TTS failed: {e}"}
-                        )
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Voice reply failed, but your response is shown as text.",
+                            "code": "tts_error",
+                        })
 
                     if tts_chunks:
                         await websocket.send_json({"type": "tts_start"})
@@ -275,4 +391,6 @@ async def websocket_endpoint(
             pass
     finally:
         sessions.pop(session_id, None)
+        active_tasks.pop(session_id, None)
+        ws_rate_limiter.cleanup(session_id)
         await redis_client.aclose()

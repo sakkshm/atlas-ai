@@ -5,6 +5,7 @@ import re
 import httpx
 
 from langchain_core.tools import tool
+from app.agent.tools.errors import handle_tool_error
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,10 @@ def distance_matrix(
     try:
         api_key = settings.GOOGLE_MAPS_API_KEY
         if not api_key:
-            return json.dumps({"error": "Google Maps API key not configured"})
+            return json.dumps({
+                "error": "Google Maps API key not configured",
+                "user_message": "Google Maps is not configured. Please contact the administrator.",
+            })
 
         params = {
             "origins": origins,
@@ -37,7 +41,14 @@ def distance_matrix(
         data = response.json()
 
         if data.get("status") != "OK":
-            return json.dumps({"error": f"Maps API error: {data.get('status')}"})
+            status = data.get("status", "UNKNOWN_ERROR")
+            if status == "REQUEST_DENIED":
+                user_msg = "Google Maps API key is invalid or has expired."
+            elif status == "ZERO_RESULTS":
+                user_msg = "No route found between those locations."
+            else:
+                user_msg = f"Maps API error: {status}"
+            return json.dumps({"error": f"Maps API error: {status}", "user_message": user_msg})
 
         results = []
         for i, origin in enumerate(data.get("origin_addresses", [])):
@@ -65,8 +76,7 @@ def distance_matrix(
         })
 
     except Exception as e:
-        logger.exception("Failed to get distance matrix")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to get distance")
 
 
 @tool
@@ -79,7 +89,10 @@ def get_directions(
     try:
         api_key = settings.GOOGLE_MAPS_API_KEY
         if not api_key:
-            return json.dumps({"error": "Google Maps API key not configured"})
+            return json.dumps({
+                "error": "Google Maps API key not configured",
+                "user_message": "Google Maps is not configured. Please contact the administrator.",
+            })
 
         params = {
             "origin": origin,
@@ -94,7 +107,14 @@ def get_directions(
         data = response.json()
 
         if data.get("status") != "OK":
-            return json.dumps({"error": f"Maps API error: {data.get('status')}"})
+            status = data.get("status", "UNKNOWN_ERROR")
+            if status == "REQUEST_DENIED":
+                user_msg = "Google Maps API key is invalid or has expired."
+            elif status == "ZERO_RESULTS":
+                user_msg = "No route found between those locations."
+            else:
+                user_msg = f"Maps API error: {status}"
+            return json.dumps({"error": f"Maps API error: {status}", "user_message": user_msg})
 
         routes = []
         for route in data.get("routes", []):
@@ -132,5 +152,4 @@ def get_directions(
         })
 
     except Exception as e:
-        logger.exception("Failed to get directions")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to get directions")

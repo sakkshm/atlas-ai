@@ -5,7 +5,8 @@ from typing import Annotated
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+
+from app.agent.tools.errors import handle_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +63,5 @@ async def search_contacts(
             },
         })
 
-    except HttpError as e:
-        logger.exception("People API error")
-        return json.dumps({"error": str(e)})
     except Exception as e:
-        logger.exception("Failed to search contacts")
-        return json.dumps({"error": str(e)})
+        return handle_tool_error(e, "Failed to search contacts")

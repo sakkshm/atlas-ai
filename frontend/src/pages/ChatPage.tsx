@@ -29,9 +29,10 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 interface Message {
-  role: "user" | "assistant" | "status" | "card";
+  role: "user" | "assistant" | "status" | "card" | "error";
   content: string;
   card?: any;
+  code?: string;
 }
 
 interface ChatPageProps {
@@ -45,6 +46,7 @@ export function ChatPage({ token }: ChatPageProps) {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [authExpired, setAuthExpired] = useState(false);
   const [hitlPending, setHitlPending] = useState<string | null>(null);
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasCreatedSession = useRef(false);
   const newSessionId = useRef(crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)).current;
@@ -153,6 +155,17 @@ export function ChatPage({ token }: ChatPageProps) {
   }, [isProcessing]);
 
   useEffect(() => {
+    if (!rateLimitedUntil) return;
+    const remaining = rateLimitedUntil - Date.now();
+    if (remaining <= 0) {
+      setRateLimitedUntil(null);
+      return;
+    }
+    const timeout = setTimeout(() => setRateLimitedUntil(null), remaining);
+    return () => clearTimeout(timeout);
+  }, [rateLimitedUntil]);
+
+  useEffect(() => {
     if (!lastMessage) return;
 
     if (lastMessage.type === "transcription" && lastMessage.text) {
@@ -200,17 +213,50 @@ export function ChatPage({ token }: ChatPageProps) {
       });
       setIsProcessing(false);
     } else if (lastMessage.type === "error") {
-      setMessages((prev) => {
-        const next = prev.filter((m) => m.role !== "status");
-        next.push({ role: "assistant", content: lastMessage.message || "Something went wrong." });
-        return next;
-      });
-      setIsProcessing(false);
+      const code = lastMessage.code;
+      const text = lastMessage.message || "Something went wrong.";
 
-      const msg = lastMessage.message || "";
-      if (msg.includes("TTS failed") || msg.includes("transcription") || msg.includes("Calendar") || msg.includes("Gmail") || msg.includes("Tasks")) {
-        toast.error("Tool error", { description: msg });
+      if (code === "rate_limited") {
+        const retryAfter = lastMessage.retry_after || 30;
+        setRateLimitedUntil(Date.now() + retryAfter * 1000);
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.role !== "status");
+          next.push({ role: "error", content: `Please wait ${retryAfter} seconds before sending another message.`, code });
+          return next;
+        });
+      } else if (code === "auth_expired") {
+        setAuthExpired(true);
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.role !== "status");
+          next.push({ role: "error", content: text, code });
+          return next;
+        });
+        toast.error("Google account access expired", {
+          description: "Please reconnect your Google account.",
+          action: {
+            label: "Reconnect",
+            onClick: () => {
+              localStorage.removeItem("token");
+              window.location.href = "/api/v1/auth/google/login";
+            },
+          },
+          duration: Infinity,
+        });
+      } else if (code === "busy") {
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.role !== "status");
+          next.push({ role: "error", content: text, code });
+          return next;
+        });
+      } else {
+        setMessages((prev) => {
+          const next = prev.filter((m) => m.role !== "status");
+          next.push({ role: "error", content: text, code });
+          return next;
+        });
       }
+
+      setIsProcessing(false);
     }
   }, [lastMessage]);
 
@@ -256,6 +302,8 @@ export function ChatPage({ token }: ChatPageProps) {
     [send]
   );
 
+  const isInputDisabled = status !== "connected" || isProcessing || !!hitlPending || !!rateLimitedUntil;
+
   if (loadingHistory) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -295,6 +343,17 @@ export function ChatPage({ token }: ChatPageProps) {
               if (msg.role === "card" && msg.card) {
                 return <ToolCard key={i} card={msg.card} className={spacing} />;
               }
+
+              if (msg.role === "error") {
+                return (
+                  <div key={i} className={`${spacing} flex justify-center`}>
+                    <div className="glass rounded-xl px-4 py-2.5 max-w-[80%] border border-amber-500/20">
+                      <p className="text-[13px] text-amber-400/90 leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                );
+              }
+
               return <ChatMessage key={i} role={msg.role as any} content={msg.content} className={spacing} />;
             })
         )}
@@ -323,11 +382,19 @@ export function ChatPage({ token }: ChatPageProps) {
         </div>
       )}
 
+      {rateLimitedUntil && (
+        <div className="max-w-3xl mx-auto w-full px-4 pb-2">
+          <div className="text-center text-xs text-amber-400/70">
+            Rate limited — wait {Math.ceil((rateLimitedUntil - Date.now()) / 1000)}s
+          </div>
+        </div>
+      )}
+
       <div className="max-w-3xl mx-auto w-full">
         <VoiceBar
           onSendText={handleSendText}
           onSendAudio={handleSendAudio}
-          disabled={status !== "connected" || isProcessing || !!hitlPending}
+          disabled={isInputDisabled}
         />
       </div>
     </>
