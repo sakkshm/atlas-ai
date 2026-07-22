@@ -7,6 +7,23 @@ import { UserBadge } from "@/components/UserBadge";
 import { ChatMessage } from "@/components/ChatMessage";
 import { VoiceBar } from "@/components/VoiceBar";
 
+const TOOL_LABELS: Record<string, string> = {
+  list_calendar_events: "Checking your calendar...",
+  create_calendar_event: "Creating calendar event...",
+  update_calendar_event: "Updating calendar event...",
+  delete_calendar_event: "Deleting calendar event...",
+  list_tasks: "Checking your tasks...",
+  create_task: "Creating task...",
+  complete_task: "Completing task...",
+  delete_task: "Deleting task...",
+  send_email: "Sending email...",
+  draft_email: "Drafting email...",
+  search_contacts: "Searching contacts...",
+  get_distance: "Checking distance...",
+  get_directions: "Getting directions...",
+  distance_matrix: "Checking distance...",
+};
+
 interface Message {
   role: "user" | "assistant" | "status";
   content: string;
@@ -83,6 +100,19 @@ function App() {
       setMessages((prev) => {
         const next = prev.filter((m) => m.role !== "status");
         next.push({ role: "user", content: lastMessage.text! });
+        return next;
+      });
+    } else if (lastMessage.type === "tool_start" && lastMessage.name) {
+      const label = TOOL_LABELS[lastMessage.name] || "Working...";
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.role !== "status");
+        next.push({ role: "status", content: label });
+        return next;
+      });
+    } else if (lastMessage.type === "tool_end") {
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.role !== "status");
+        next.push({ role: "status", content: "Thinking..." });
         return next;
       });
     } else if (lastMessage.type === "status" && lastMessage.message) {

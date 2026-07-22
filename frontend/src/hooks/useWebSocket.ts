@@ -3,9 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type WSStatus = "connecting" | "connected" | "disconnected";
 
 export interface WSMessage {
-  type: "status" | "response" | "tts_start" | "tts_end" | "error" | "transcription";
+  type: "status" | "response" | "tts_start" | "tts_end" | "error" | "transcription" | "tool_start" | "tool_end";
   message?: string;
   text?: string;
+  name?: string;
 }
 
 interface UseWebSocketOptions {

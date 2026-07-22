@@ -1,17 +1,76 @@
+import asyncio
 import json
 import logging
+import uuid
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from app.agent.graph import run_agent
 from app.agent.stt import transcribe
 from app.agent.tts import synthesize
+from app.core.config import settings
 from app.core.security import verify_session_token
+from app.tasks.agent import run_agent_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 sessions: dict[str, list[dict]] = {}
+
+
+async def _drain_stream(
+    redis_client: aioredis.Redis,
+    stream_key: str,
+    websocket: WebSocket,
+    task_id: str,
+    last_id: str = "0",
+    timeout: float = 300,
+) -> str | None:
+    deadline = asyncio.get_event_loop().time() + timeout
+    response_text = None
+
+    while True:
+        remaining = deadline - asyncio.get_event_loop().time()
+        if remaining <= 0:
+            await websocket.send_json({"type": "error", "message": "Agent timed out"})
+            break
+
+        try:
+            entries = await redis_client.xread(
+                {stream_key: last_id},
+                count=10,
+                block=int(min(remaining, 1.0) * 1000),
+            )
+        except asyncio.TimeoutError:
+            continue
+
+        if not entries:
+            continue
+
+        for _key, messages in entries:
+            for entry_id, fields in messages:
+                last_id = entry_id
+                raw = fields.get("data") or fields.get(b"data")
+                event = json.loads(raw)
+
+                if event.get("task_id") != task_id:
+                    continue
+
+                await websocket.send_json(event)
+
+                if event["type"] == "done":
+                    response_text = event.get("response", "")
+                    break
+                elif event["type"] == "error":
+                    break
+
+            if response_text is not None or event["type"] == "error":
+                break
+
+        if response_text is not None or event["type"] == "error":
+            break
+
+    return response_text
 
 
 @router.websocket("/ws/{session_id}")
@@ -29,6 +88,10 @@ async def websocket_endpoint(
         sessions[session_id] = []
 
     message_history = sessions[session_id]
+
+    redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    stream_key = f"stream:{session_id}"
+    last_id = "0"
 
     try:
         while True:
@@ -69,66 +132,37 @@ async def websocket_endpoint(
 
                 message_history.append({"role": "user", "content": text})
 
-                await websocket.send_json(
-                    {"type": "status", "message": "Thinking..."}
-                )
-                try:
-                    response = await run_agent(message_history, session_id)
-                except Exception as e:
-                    logger.exception("Agent failed")
-                    await websocket.send_json(
-                        {"type": "error", "message": f"Agent failed: {e}"}
-                    )
-                    message_history.pop()
-                    continue
-
-                message_history.append({"role": "assistant", "content": response})
-
-                tts_chunks = []
-                try:
-                    async for audio_chunk in synthesize(response):
-                        tts_chunks.append(audio_chunk)
-                except Exception as e:
-                    logger.exception("TTS failed")
-                    await websocket.send_json(
-                        {"type": "error", "message": f"TTS failed: {e}"}
-                    )
-
-                if tts_chunks:
-                    await websocket.send_json({"type": "tts_start"})
-                    for audio_chunk in tts_chunks:
-                        await websocket.send_bytes(audio_chunk)
-                    await websocket.send_json({"type": "tts_end"})
-
-                await websocket.send_json(
-                    {"type": "response", "text": response}
-                )
-
             elif msg_type == "text":
                 user_text = payload.get("data", "")
                 if not user_text.strip():
                     continue
-
                 message_history.append({"role": "user", "content": user_text})
 
-                await websocket.send_json(
-                    {"type": "status", "message": "Thinking..."}
-                )
-                try:
-                    response = await run_agent(message_history, session_id)
-                except Exception as e:
-                    logger.exception("Agent failed")
-                    await websocket.send_json(
-                        {"type": "error", "message": f"Agent failed: {e}"}
-                    )
-                    message_history.pop()
-                    continue
+            else:
+                continue
 
-                message_history.append({"role": "assistant", "content": response})
+            task_id = str(uuid.uuid4())
+
+            run_agent_task.apply_async(
+                kwargs={
+                    "task_id": task_id,
+                    "session_id": session_id,
+                    "message_history": list(message_history),
+                },
+                task_id=task_id,
+                queue="agent",
+            )
+
+            response_text = await _drain_stream(
+                redis_client, stream_key, websocket, task_id, last_id
+            )
+
+            if response_text:
+                message_history.append({"role": "assistant", "content": response_text})
 
                 tts_chunks = []
                 try:
-                    async for audio_chunk in synthesize(response):
+                    async for audio_chunk in synthesize(response_text):
                         tts_chunks.append(audio_chunk)
                 except Exception as e:
                     logger.exception("TTS failed")
@@ -143,8 +177,10 @@ async def websocket_endpoint(
                     await websocket.send_json({"type": "tts_end"})
 
                 await websocket.send_json(
-                    {"type": "response", "text": response}
+                    {"type": "response", "text": response_text}
                 )
+
+            last_id = ">"
 
     except WebSocketDisconnect:
         pass
@@ -154,3 +190,5 @@ async def websocket_endpoint(
             await websocket.close(code=1011, reason=str(e))
         except Exception:
             pass
+    finally:
+        await redis_client.aclose()
