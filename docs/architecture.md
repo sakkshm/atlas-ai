@@ -567,7 +567,7 @@ VITE_WS_URL=ws://localhost:8000
 
 1. **Dual graph instances**: FastAPI compiles a LangGraph at startup (for `run_agent()`), but the Celery worker builds its own graph per task to avoid shared state across worker processes.
 
-2. **Redis Streams over Pub/Sub**: `xadd`/`xread` provides durable event streaming — messages persist, late-joining consumers can replay, and the stream survives temporary disconnects.
+2. **Redis Streams over Pub/Sub**: `xadd`/`xread` provides durable event streaming, messages persist, late-joining consumers can replay, and the stream survives temporary disconnects.
 
 3. **Fernet encryption at rest**: Google OAuth tokens are encrypted with AES-256 before storage in PostgreSQL. The encryption key is derived from `FERNET_KEY`.
 
@@ -575,6 +575,6 @@ VITE_WS_URL=ws://localhost:8000
 
 5. **Tool cards as structured data**: Tools return both natural-language text AND a structured `"card"` object, allowing the frontend to render rich UI components (calendar events, task lists, email previews, route info) alongside the text response.
 
-6. **LLM-based HITL**: Destructive action confirmation is handled via prompt engineering (the LLM asks before acting) rather than hardcoded `interrupt()` per tool. This is simpler and more flexible — the LLM decides what needs confirmation based on context.
+6. **LLM-based HITL**: Destructive action confirmation is handled via prompt engineering (the LLM asks before acting) rather than hardcoded `interrupt()` per tool. This is simpler and more flexible, the LLM decides what needs confirmation based on context.
 
 7. **No backdrop-filter**: Glass surfaces use solid semi-transparent backgrounds instead of `backdrop-filter: blur()` for better rendering performance, especially on mobile.

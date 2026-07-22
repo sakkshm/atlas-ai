@@ -1,6 +1,6 @@
 # Atlas
 
-Voice-enabled AI assistant that orchestrates actions across Google Workspace services. Speak or type a command and Atlas chains together actions across Calendar, Tasks, Gmail, Contacts, and Maps — streaming each step back in real time.
+A voice-first AI assistant for Google Workspace. You speak or type a command, and Atlas handles it, chaining actions across Calendar, Tasks, Gmail, Contacts, and Maps while showing you each step as it happens.
 
 ## Architecture
 
@@ -30,11 +30,11 @@ Voice-enabled AI assistant that orchestrates actions across Google Workspace ser
                       +--------------------------+
                       |   Celery Worker           |
                       |   LangGraph Agent         |
-                      |                           |
+                      |                            |
                       |   1. SarvamAI STT API     |
                       |   2. Gemini LLM Reasoning  |
-                      |   3. Google API Tools     |
-                      |   4. SarvamAI TTS API     |
+                      |   3. Google API Tools      |
+                      |   4. SarvamAI TTS API      |
                       +--------------------------+
 ```
 
@@ -43,14 +43,14 @@ Voice-enabled AI assistant that orchestrates actions across Google Workspace ser
 | Layer | Technology |
 |---|---|
 | Backend | FastAPI, Python 3.11+ |
-| Agent | LangGraph (modular tool-calling) |
+| Agent | LangGraph (tool-calling framework) |
 | Task Queue | Celery (Redis broker) |
-| Streaming | WebSocket + Redis Pub/Sub |
+| Streaming | WebSocket + Redis Streams |
 | Database | PostgreSQL (async SQLAlchemy) |
 | Auth | Google OAuth2, JWT sessions |
 | Encryption | AES-256 (Fernet) |
 | LLM | Gemini 2.0 Flash (free tier) |
-| STT | SarvamAI API (bulbul:v3) |
+| STT | SarvamAI API (saaras:v3) |
 | TTS | SarvamAI API (bulbul:v3) |
 | Frontend | React, Vite, TypeScript, Tailwind |
 | Typography | Instrument Serif, Inter Variable |
@@ -176,16 +176,16 @@ This starts PostgreSQL, Redis, the FastAPI backend, and the Celery worker. The f
 
 ## How It Works
 
-1. **Authenticate** — User logs in via Google OAuth2. Access and refresh tokens are encrypted with AES-256 and stored in PostgreSQL.
-2. **Send Command** — User speaks (push-to-talk) or types a command in the UI.
-3. **Process** — The command is sent over WebSocket to FastAPI, which enqueues a Celery task. The LangGraph agent:
-   - Transcribes audio via SarvamAI STT API
+1. **Authenticate**. User logs in via Google OAuth2. Access and refresh tokens are encrypted with AES-256 and stored in PostgreSQL.
+2. **Send Command**. User speaks (push-to-talk) or types a command in the UI.
+3. **Process**. The command is sent over WebSocket to FastAPI, which enqueues a Celery task. The LangGraph agent then:
+   - Transcribes audio via SarvamAI STT (if voice input)
    - Reasons over the user's intent with Gemini 2.0 Flash
-   - Resolves entities (e.g., "John" → Contacts API → email address)
+   - Resolves entities (e.g., "John" becomes a contact lookup, then an email address)
    - Executes Google API tools (Calendar, Tasks, Gmail, Maps)
-   - For destructive actions (delete, send email), asks for confirmation before proceeding (HITL)
-4. **Stream** — Each step is published to Redis Pub/Sub and streamed back to the frontend in real time.
-5. **Respond** — The final answer is rendered as text + structured action cards and read aloud via SarvamAI TTS (streamed as audio over WebSocket).
+   - Asks for confirmation before destructive actions (delete, send email)
+4. **Stream**. Each step is published to Redis and streamed back to the frontend in real time.
+5. **Respond**. The final answer shows up as text plus structured action cards, and gets read aloud via SarvamAI TTS.
 
 ## Project Structure
 
