@@ -127,6 +127,7 @@ def get_directions(
                 "type": "route",
                 "routes": routes,
                 "mode": mode,
+                "step_count": len(steps) if routes else 0,
             },
         })
 

@@ -19,6 +19,8 @@ const TOOL_LABELS: Record<string, string> = {
   delete_task: "Deleting task...",
   send_email: "Sending email...",
   draft_email: "Drafting email...",
+  list_emails: "Checking your inbox...",
+  read_email: "Reading email...",
   search_contacts: "Searching contacts...",
   get_distance: "Checking distance...",
   get_directions: "Getting directions...",

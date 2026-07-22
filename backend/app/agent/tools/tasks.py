@@ -60,6 +60,8 @@ async def list_tasks(
                 "type": "tasks_list",
                 "tasks": task_list,
                 "count": len(task_list),
+                "completed_count": sum(1 for t in task_list if t["status"] == "completed"),
+                "pending_count": sum(1 for t in task_list if t["status"] != "completed"),
             },
         })
 
@@ -108,6 +110,7 @@ async def create_task(
             "card": {
                 "type": "task_created",
                 "title": created.get("title"),
+                "notes": created.get("notes", ""),
                 "due": created.get("due", ""),
                 "webViewLink": created.get("webViewLink", ""),
             },

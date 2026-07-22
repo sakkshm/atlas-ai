@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import Markdown from "react-markdown";
 
 interface ChatMessageProps {
   role: "user" | "assistant" | "status";
@@ -29,7 +30,33 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
             : "bg-zinc-900 text-zinc-200 border border-zinc-800"
         }`}
       >
-        {content}
+        {isUser ? (
+          content
+        ) : (
+          <Markdown
+            components={{
+              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-4 mb-2 last:mb-0">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 last:mb-0">{children}</ol>,
+              li: ({ children }) => <li className="mb-0.5">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold text-zinc-100">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+              code: ({ children, className }) => {
+                const isBlock = className?.includes("language-");
+                return isBlock ? (
+                  <code className="block bg-zinc-800 rounded-md px-3 py-2 my-2 text-xs overflow-x-auto">{children}</code>
+                ) : (
+                  <code className="bg-zinc-800 rounded px-1.5 py-0.5 text-xs">{children}</code>
+                );
+              },
+              a: ({ children, href }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{children}</a>
+              ),
+            }}
+          >
+            {content}
+          </Markdown>
+        )}
       </div>
     </div>
   );

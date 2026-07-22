@@ -246,6 +246,7 @@ async def read_email(
             "card": {
                 "type": "email_read",
                 "from": parsed["from"],
+                "to": parsed["to"],
                 "subject": parsed["subject"],
                 "date": parsed["date"],
                 "body_preview": body_text[:300],
