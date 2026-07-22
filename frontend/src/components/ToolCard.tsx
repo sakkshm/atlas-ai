@@ -1,4 +1,4 @@
-import { Calendar, CheckSquare, Mail, MapPin, User, List, Trash2, Route } from "lucide-react";
+import { Calendar, CheckSquare, Mail, MapPin, User, List, Trash2, Route, Inbox, MailOpen } from "lucide-react";
 
 interface ToolCardProps {
   card: {
@@ -18,6 +18,8 @@ const ICON_MAP: Record<string, any> = {
   events_list: Calendar,
   email_sent: Mail,
   email_drafted: Mail,
+  emails_list: Inbox,
+  email_read: MailOpen,
   contacts_list: User,
   distance_matrix: MapPin,
   route: Route,
@@ -34,6 +36,8 @@ const LABEL_MAP: Record<string, string> = {
   events_list: "Calendar Events",
   email_sent: "Email Sent",
   email_drafted: "Draft Created",
+  emails_list: "Emails",
+  email_read: "Email",
   contacts_list: "Contacts",
   distance_matrix: "Distance",
   route: "Directions",
@@ -161,6 +165,34 @@ export function ToolCard({ card }: ToolCardProps) {
             <div className="text-zinc-500 text-xs mt-1">To: {card.to}</div>
             {card.body_preview && (
               <div className="text-zinc-600 text-xs mt-1 line-clamp-2">{card.body_preview}</div>
+            )}
+          </div>
+        )}
+
+        {card.type === "emails_list" && (
+          <div>
+            <div className="text-zinc-100 font-medium">{card.count} email{card.count !== 1 ? "s" : ""}</div>
+            {card.emails?.slice(0, 5).map((email: any, i: number) => (
+              <div key={i} className="text-xs mt-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Inbox className="size-3 text-zinc-500" />
+                  <span className={email.is_unread ? "text-zinc-100 font-medium" : "text-zinc-400"}>
+                    {email.subject || "(no subject)"}
+                  </span>
+                </div>
+                <div className="text-zinc-600 ml-4.5">from {email.from?.split("<")[0].trim()}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {card.type === "email_read" && (
+          <div>
+            <div className="text-zinc-100 font-medium">{card.subject}</div>
+            <div className="text-zinc-500 text-xs mt-1">From: {card.from}</div>
+            <div className="text-zinc-600 text-xs">{card.date}</div>
+            {card.body_preview && (
+              <div className="text-zinc-400 text-xs mt-2 line-clamp-4 whitespace-pre-wrap">{card.body_preview}</div>
             )}
           </div>
         )}

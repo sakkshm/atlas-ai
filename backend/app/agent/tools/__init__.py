@@ -9,7 +9,7 @@ from app.agent.tools.calendar import (
     update_calendar_event,
 )
 from app.agent.tools.contacts import search_contacts
-from app.agent.tools.gmail import draft_email, send_email
+from app.agent.tools.gmail import draft_email, list_emails, read_email, send_email
 from app.agent.tools.maps import distance_matrix, get_directions
 from app.agent.tools.tasks import (
     complete_task,
@@ -29,6 +29,8 @@ tools = [
     delete_task,
     send_email,
     draft_email,
+    list_emails,
+    read_email,
     search_contacts,
     distance_matrix,
     get_directions,
