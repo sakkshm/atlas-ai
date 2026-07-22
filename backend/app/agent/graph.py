@@ -48,11 +48,17 @@ def get_graph():
     return graph
 
 
+MAX_CONTEXT_MESSAGES = 40
+
+
 async def run_agent(messages: list[dict], thread_id: str, user_id: str = "") -> str:
     from langchain_core.messages import AIMessage, HumanMessage
 
     lc_messages = [SystemMessage(content=SYSTEM_PROMPT)]
-    for msg in messages:
+
+    recent = messages[-MAX_CONTEXT_MESSAGES:] if len(messages) > MAX_CONTEXT_MESSAGES else messages
+
+    for msg in recent:
         if msg["role"] == "user":
             lc_messages.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":

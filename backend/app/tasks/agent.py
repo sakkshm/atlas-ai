@@ -120,6 +120,9 @@ def run_agent_task(
         raise self.retry(exc=exc)
 
 
+MAX_CONTEXT_MESSAGES = 40
+
+
 async def _execute_agent(
     message_history: list[dict],
     channel: str,
@@ -149,7 +152,10 @@ async def _execute_agent(
     graph = builder.compile()
 
     lc_messages = [SystemMessage(content=SYSTEM_PROMPT)]
-    for msg in message_history:
+
+    recent = message_history[-MAX_CONTEXT_MESSAGES:] if len(message_history) > MAX_CONTEXT_MESSAGES else message_history
+
+    for msg in recent:
         if msg["role"] == "user":
             lc_messages.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
