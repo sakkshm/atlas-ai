@@ -43,9 +43,10 @@ export function useWebSocket(
     clearTimeout(reconnectTimeout.current);
 
     const myId = ++connIdRef.current;
+    const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    const url = `${protocol}//${host}/api/v1/ws/${sessionId}?token=${token}`;
+    const host = wsBaseUrl || `${protocol}//${window.location.host}`;
+    const url = `${host}/api/v1/ws/${sessionId}?token=${token}`;
 
     setStatus("connecting");
     const ws = new WebSocket(url);
