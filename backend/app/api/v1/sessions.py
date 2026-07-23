@@ -60,7 +60,7 @@ async def create_session(
         title=body.title,
     )
     db.add(session)
-    await db.flush()
+    await db.commit()
     return session
 
 
