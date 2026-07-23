@@ -130,4 +130,25 @@ async def get_me(user: User = Depends(get_current_user)):
         "email": user.email,
         "name": user.name,
         "avatar_url": user.avatar_url,
+        "timezone": user.timezone,
     }
+
+
+@router.put("/timezone")
+async def update_timezone(
+    body: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tz = body.get("timezone", "UTC")
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+
+    result = await db.execute(select(User).where(User.id == user.id))
+    db_user = result.scalar_one_or_none()
+    db_user.timezone = tz
+    await db.commit()
+    return {"timezone": tz}

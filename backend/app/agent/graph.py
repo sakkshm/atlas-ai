@@ -51,10 +51,10 @@ def get_graph():
 MAX_CONTEXT_MESSAGES = 40
 
 
-async def run_agent(messages: list[dict], thread_id: str, user_id: str = "") -> str:
+async def run_agent(messages: list[dict], thread_id: str, user_id: str = "", user_timezone: str = "UTC") -> str:
     from langchain_core.messages import AIMessage, HumanMessage
 
-    lc_messages = [SystemMessage(content=get_system_prompt())]
+    lc_messages = [SystemMessage(content=get_system_prompt(user_timezone))]
 
     recent = messages[-MAX_CONTEXT_MESSAGES:] if len(messages) > MAX_CONTEXT_MESSAGES else messages
 
@@ -66,7 +66,7 @@ async def run_agent(messages: list[dict], thread_id: str, user_id: str = "") -> 
 
     g = get_graph()
     result = await g.ainvoke(
-        {"messages": lc_messages, "user_id": user_id, "tool_cards": []},
+        {"messages": lc_messages, "user_id": user_id, "user_timezone": user_timezone, "tool_cards": []},
         config={"configurable": {"thread_id": thread_id}},
     )
 

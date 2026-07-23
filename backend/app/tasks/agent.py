@@ -69,6 +69,7 @@ def run_agent_task(
     session_id: str,
     message_history: list[dict],
     user_id: str = "",
+    user_timezone: str = "UTC",
 ):
     channel = f"stream:{session_id}"
     logger.info("run_agent_task received user_id=%r", user_id)
@@ -81,7 +82,7 @@ def run_agent_task(
         })
 
         response, cards = asyncio.run(
-            _execute_agent(message_history, channel, task_id, user_id)
+            _execute_agent(message_history, channel, task_id, user_id, user_timezone)
         )
 
         for card in cards:
@@ -128,6 +129,7 @@ async def _execute_agent(
     channel: str,
     task_id: str,
     user_id: str = "",
+    user_timezone: str = "UTC",
 ) -> tuple[str, list[dict]]:
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
     from langgraph.graph import END, START, StateGraph
@@ -151,7 +153,7 @@ async def _execute_agent(
     builder.add_edge("tools", "agent")
     graph = builder.compile()
 
-    lc_messages = [SystemMessage(content=get_system_prompt())]
+    lc_messages = [SystemMessage(content=get_system_prompt(user_timezone))]
 
     recent = message_history[-MAX_CONTEXT_MESSAGES:] if len(message_history) > MAX_CONTEXT_MESSAGES else message_history
 
@@ -164,6 +166,7 @@ async def _execute_agent(
     initial_state = {
         "messages": lc_messages,
         "user_id": user_id,
+        "user_timezone": user_timezone,
         "tool_cards": [],
     }
 

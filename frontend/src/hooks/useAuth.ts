@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { getMe, login } from "@/lib/api";
+import { getMe, login, updateTimezone } from "@/lib/api";
 
 export interface User {
   id: string;
   email: string;
   name: string;
   avatar_url: string | null;
+  timezone: string;
 }
 
 export function useAuth() {
@@ -24,7 +25,14 @@ export function useAuth() {
     const stored = localStorage.getItem("token");
     if (stored) {
       getMe(stored)
-        .then(setUser)
+        .then((u) => {
+          setUser(u);
+          const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (u.timezone !== browserTz) {
+            updateTimezone(stored, browserTz).catch(() => {});
+            setUser({ ...u, timezone: browserTz });
+          }
+        })
         .catch(() => localStorage.removeItem("token"))
         .finally(() => setLoading(false));
     } else {

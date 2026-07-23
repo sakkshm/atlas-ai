@@ -29,8 +29,8 @@ def get_model_with_tools() -> ChatGoogleGenerativeAI:
     return _model_with_tools
 
 
-async def chat(messages: list[dict]) -> str:
-    langchain_messages = [SystemMessage(content=get_system_prompt())]
+async def chat(messages: list[dict], user_timezone: str = "UTC") -> str:
+    langchain_messages = [SystemMessage(content=get_system_prompt(user_timezone))]
     for msg in messages:
         if msg["role"] == "user":
             langchain_messages.append(HumanMessage(content=msg["content"]))

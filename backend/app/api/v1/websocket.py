@@ -19,6 +19,7 @@ from app.core.ratelimit import ws_rate_limiter
 from app.core.security import verify_session_token
 from app.models.session import Message, Session
 from app.models.settings import UserSettings
+from app.models.user import User
 from app.tasks.agent import run_agent_task
 
 router = APIRouter()
@@ -159,6 +160,10 @@ async def websocket_endpoint(
         tts_enabled = user_settings.tts_enabled if user_settings else True
         tts_voice = user_settings.tts_voice if user_settings else "shubh"
         stt_language = user_settings.stt_language if user_settings else "unknown"
+
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        user_timezone = user.timezone if user else "UTC"
 
     if session_id not in sessions:
         sessions[session_id] = list(db_messages)
@@ -311,6 +316,7 @@ async def websocket_endpoint(
                         "session_id": session_id,
                         "message_history": list(message_history),
                         "user_id": user_id,
+                        "user_timezone": user_timezone,
                     },
                     task_id=task_id,
                     queue="agent",

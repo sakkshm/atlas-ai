@@ -2,6 +2,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
@@ -16,11 +17,19 @@ def _build_calendar_service(creds):
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
+def _get_tz(user_timezone: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(user_timezone)
+    except (KeyError, ValueError):
+        return ZoneInfo("UTC")
+
+
 @tool
 async def list_calendar_events(
     start_date: str,
     end_date: str,
     user_id: Annotated[str, InjectedState("user_id")] = "",
+    user_timezone: Annotated[str, InjectedState("user_timezone")] = "UTC",
 ) -> str:
     """List Google Calendar events in a date range. Args: start_date (YYYY-MM-DD), end_date (YYYY-MM-DD)."""
     try:
@@ -29,11 +38,13 @@ async def list_calendar_events(
         creds = await get_google_credentials(user_id)
         service = _build_calendar_service(creds)
 
+        tz = _get_tz(user_timezone)
+
         time_min = datetime.strptime(start_date, "%Y-%m-%d").replace(
-            tzinfo=timezone.utc
+            tzinfo=tz
         ).isoformat()
         time_max = datetime.strptime(end_date, "%Y-%m-%d").replace(
-            hour=23, minute=59, tzinfo=timezone.utc
+            hour=23, minute=59, tzinfo=tz
         ).isoformat()
 
         events_result = (
@@ -87,6 +98,7 @@ async def create_calendar_event(
     description: str = "",
     attendees: str = "",
     user_id: Annotated[str, InjectedState("user_id")] = "",
+    user_timezone: Annotated[str, InjectedState("user_timezone")] = "UTC",
 ) -> str:
     """Create a Google Calendar event. Args: summary (title), start_datetime (ISO), end_datetime (ISO), description (optional), attendees (comma-separated emails, optional)."""
     try:
@@ -97,8 +109,8 @@ async def create_calendar_event(
 
         event_body = {
             "summary": summary,
-            "start": {"dateTime": start_datetime, "timeZone": "UTC"},
-            "end": {"dateTime": end_datetime, "timeZone": "UTC"},
+            "start": {"dateTime": start_datetime, "timeZone": user_timezone},
+            "end": {"dateTime": end_datetime, "timeZone": user_timezone},
         }
 
         if description:
@@ -147,6 +159,7 @@ async def update_calendar_event(
     end_datetime: str = "",
     description: str = "",
     user_id: Annotated[str, InjectedState("user_id")] = "",
+    user_timezone: Annotated[str, InjectedState("user_timezone")] = "UTC",
 ) -> str:
     """Update an existing Google Calendar event. Args: event_id, summary (optional), start_datetime (optional, ISO), end_datetime (optional, ISO), description (optional)."""
     try:
@@ -159,9 +172,9 @@ async def update_calendar_event(
         if summary:
             event_body["summary"] = summary
         if start_datetime:
-            event_body["start"] = {"dateTime": start_datetime, "timeZone": "UTC"}
+            event_body["start"] = {"dateTime": start_datetime, "timeZone": user_timezone}
         if end_datetime:
-            event_body["end"] = {"dateTime": end_datetime, "timeZone": "UTC"}
+            event_body["end"] = {"dateTime": end_datetime, "timeZone": user_timezone}
         if description:
             event_body["description"] = description
 

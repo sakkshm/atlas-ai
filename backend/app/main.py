@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -17,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from alembic.config import Config
+    from alembic import command
+
+    alembic_cfg = Config("/app/alembic.ini")
+    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
+
     from app.agent.graph import init_graph
 
     await init_graph()

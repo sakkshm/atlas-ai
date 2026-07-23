@@ -141,3 +141,12 @@ export async function updateUserSettings(
   if (!res.ok) throw new Error("Failed to update settings");
   return res.json();
 }
+
+export async function updateTimezone(token: string, timezone: string): Promise<void> {
+  const res = await fetchWithRetry(`${API_BASE}/auth/timezone`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ timezone }),
+  });
+  if (!res.ok) throw new Error("Failed to update timezone");
+}
